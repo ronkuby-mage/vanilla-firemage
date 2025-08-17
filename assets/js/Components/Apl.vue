@@ -22,8 +22,9 @@ const collapseToggle = (id) => {
         collapsed.value.push(id);
 };
 const collapseAll = () => {
+    const allIds = [props.modelValue.fixedSequence.id, ...props.modelValue.items.map(item => item.id)];
     if (collapsed.value.length === 0)
-        collapsed.value = props.modelValue.items.map(item => item.id);
+        collapsed.value = allIds;
     else
         collapsed.value = [];
 };
@@ -160,15 +161,35 @@ const changed = () => {
  * Events
  */
 watch(() => props.modelValue.id, (value) => {
-    if (collapsed.value.length)
-        collapsed.value = props.modelValue.items.map(i => i.id);
+    if (collapsed.value.length) {
+        const allIds = [props.modelValue.fixedSequence.id, ...props.modelValue.items.map(i => i.id)];
+        collapsed.value = allIds;
+    }
 });
-watch(() => props.player.id, (value) => {
-    if (collapsed.value.length)
-        collapsed.value = props.modelValue.items.map(i => i.id);
+watch(() => props.modelValue.id, (value) => {
+    if (collapsed.value.length) {
+        const allIds = [props.modelValue.fixedSequence.id, ...props.modelValue.items.map(i => i.id)];
+        collapsed.value = allIds;
+    }
 });
-
 onMounted(() => {
+    // Ensure backward compatibility - add fixed sequence if it doesn't exist
+    if (!props.modelValue.fixedSequence) {
+        props.modelValue.fixedSequence = {
+            id: "fixed-sequence",
+            status: true,
+            condition: apl.condition(),
+            action: {
+                id: "fixed-sequence-action",
+                key: "Sequence",
+                target_id: 1,
+                sequence: [apl.action()],
+            }
+        };
+        changed();
+    }
+    
+    // Existing event listeners
     window.addEventListener("mousemove", onDragMove);
     window.addEventListener("mouseup", onDragEnd);
 });
@@ -176,6 +197,37 @@ onUnmounted(() => {
     window.removeEventListener("mousemove", onDragMove);
     window.removeEventListener("mouseup", onDragEnd);
 });
+
+/* fixed sequence funcitons */
+if (!props.modelValue.fixedSequence) {
+    props.modelValue.fixedSequence = {
+        id: "fixed-sequence",
+        status: true,
+        condition: apl.condition(),
+        action: {
+            id: "fixed-sequence-action",
+            key: "Sequence",
+            target_id: 1,
+            sequence: [apl.action()],
+        }
+    };
+}
+// Add methods for managing fixed sequence actions:
+const createFixedSequenceAction = () => {
+    props.modelValue.fixedSequence.action.sequence.push(apl.action());
+    changed();
+};
+
+const deleteFixedSequenceAction = (index) => {
+    // Don't allow deleting the last action - always keep at least one
+    if (props.modelValue.fixedSequence.action.sequence.length > 1) {
+        props.modelValue.fixedSequence.action.sequence.splice(index, 1);
+    } else {
+        // Replace with a new empty action instead of deleting
+        props.modelValue.fixedSequence.action.sequence[0] = apl.action();
+    }
+    changed();
+};
 </script>
 
 <template>
@@ -184,6 +236,67 @@ onUnmounted(() => {
             <template v-if="collapsed.length == 0">Collapse all</template>
             <template v-else>Expand all</template>
         </button>
+
+       <!-- Fixed Sequence Section -->
+        <div class="apl-fixed-sequence">
+            <div class="fixed-sequence-header">
+                <span class="header-title">Opening Sequence (Fixed)</span>
+                <span class="header-note">Always executes first</span>
+            </div>
+            <div
+                class="apl-item fixed-sequence"
+                :class="[
+                    isCollapsed(modelValue.fixedSequence.id) ? 'collapsed' : 'expanded',
+                    'status-'+modelValue.fixedSequence.status,
+                ]"
+            >
+                <div class="header">
+                    <button class="toggle" @click="collapseToggle(modelValue.fixedSequence.id)">
+                        <span v-if="isCollapsed(modelValue.fixedSequence.id)">
+                            <micon icon="add" />
+                            <tooltip>Expand</tooltip>
+                        </span>
+                        <span v-else>
+                            <micon icon="remove" />
+                            <tooltip>Collapse</tooltip>
+                        </span>
+                    </button>
+                    <button class="status" @click="statusToggle(modelValue.fixedSequence)">
+                        <template v-if="modelValue.fixedSequence.status">
+                            <micon icon="visibility" />
+                            <tooltip>Disable</tooltip>
+                        </template>
+                        <template v-else>
+                            <micon icon="visibility_off" />
+                            <tooltip>Enable</tooltip>
+                        </template>
+                    </button>
+                    <!-- No delete button for fixed sequence -->
+                </div>
+
+                <div class="title" v-if="isCollapsed(modelValue.fixedSequence.id)" @click="collapseToggle(modelValue.fixedSequence.id)">
+                    Opening Sequence: {{ modelValue.fixedSequence.action.sequence.length }} actions
+                </div>
+                <div class="body" v-else>
+                    <!-- Fixed sequence body - show sequence management directly -->
+                    <div class="fixed-sequence-body">
+                        <div class="apl-sequence">
+                            <template v-for="(action, index) in modelValue.fixedSequence.action.sequence" :key="action.id">
+                                <apl-action
+                                    v-model="modelValue.fixedSequence.action.sequence[index]"
+                                    :player="props.player"
+                                    :deletable="true"
+                                    @delete="deleteFixedSequenceAction(index)"
+                                    @update:modelValue="changed"
+                                />
+                            </template>
+                            <button class="btn btn-secondary small" @click="createFixedSequenceAction">Add action</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="apl-items" :class="{dragend: isDragEnd}">
             <div
                 class="apl-item"
@@ -196,6 +309,10 @@ onUnmounted(() => {
                 v-for="(item, index) in modelValue.items"
                 :key="item.id"
             >
+                <div class="rotation-header">
+                    <h4>Priority Rotation</h4>
+                    <span class="rotation-note">Actions are evaluated in order after the opening sequence</span>
+                </div>            
                 <div class="header">
                     <button class="toggle" @click="collapseToggle(item.id)">
                         <span v-if="isCollapsed(item.id)">

@@ -99,6 +99,17 @@ export default {
             version: "1.0",
             name: "",
             items: [],
+            fixedSequence: {
+                id: "fixed-sequence",
+                status: true,
+                condition: this.condition(),
+                action: {
+                    id: "fixed-sequence-action", 
+                    key: "Sequence",
+                    target_id: 1,
+                    sequence: [this.action()], // Start with one default action
+                }
+            }            
         };
     },
     item() {

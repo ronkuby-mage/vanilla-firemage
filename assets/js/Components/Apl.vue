@@ -22,7 +22,11 @@ const collapseToggle = (id) => {
         collapsed.value.push(id);
 };
 const collapseAll = () => {
-    const allIds = [props.modelValue.fixedSequence.id, ...props.modelValue.items.map(item => item.id)];
+    const allIds = [
+        props.modelValue.fixedSequence.id, 
+        ...props.modelValue.items.map(item => item.id),
+        props.modelValue.defaultAction.id  // ADD THIS LINE
+    ];
     if (collapsed.value.length === 0)
         collapsed.value = allIds;
     else
@@ -217,7 +221,6 @@ const createFixedSequenceAction = () => {
     props.modelValue.fixedSequence.action.sequence.push(apl.action());
     changed();
 };
-
 const deleteFixedSequenceAction = (index) => {
     // Don't allow deleting the last action - always keep at least one
     if (props.modelValue.fixedSequence.action.sequence.length > 1) {
@@ -227,6 +230,28 @@ const deleteFixedSequenceAction = (index) => {
         props.modelValue.fixedSequence.action.sequence[0] = apl.action();
     }
     changed();
+};
+/* default action */
+if (!props.modelValue.defaultAction) {
+    props.modelValue.defaultAction = {
+        id: "default-action",
+        status: true,
+        action: apl.action()
+    };
+}
+const defaultActionTitle = () => {
+    let action = apl.actions().find(a => a.key == props.modelValue.defaultAction.action.key);
+    if (action) {
+        if (action.item) {
+            let item = items.gear[action.title].find(i => i.id == action.item);
+            if (item)
+                return _.capitalize(action.title) + ": " + item.title;
+            else
+                return "Use: " + _.capitalize(action.title);
+        }
+        return action.title;
+    }
+    return "Default Action";
 };
 </script>
 
@@ -240,7 +265,7 @@ const deleteFixedSequenceAction = (index) => {
        <!-- Fixed Sequence Section -->
         <div class="apl-fixed-sequence">
             <div class="fixed-sequence-header">
-                <span class="header-title">Opening Sequence (Fixed)</span>
+                <span class="header-title">Opening Sequence</span>
                 <span class="header-note">Always executes first</span>
             </div>
             <div
@@ -260,16 +285,6 @@ const deleteFixedSequenceAction = (index) => {
                             <micon icon="remove" />
                             <tooltip>Collapse</tooltip>
                         </span>
-                    </button>
-                    <button class="status" @click="statusToggle(modelValue.fixedSequence)">
-                        <template v-if="modelValue.fixedSequence.status">
-                            <micon icon="visibility" />
-                            <tooltip>Disable</tooltip>
-                        </template>
-                        <template v-else>
-                            <micon icon="visibility_off" />
-                            <tooltip>Enable</tooltip>
-                        </template>
                     </button>
                     <!-- No delete button for fixed sequence -->
                 </div>
@@ -298,6 +313,10 @@ const deleteFixedSequenceAction = (index) => {
         </div>
 
         <div class="apl-items" :class="{dragend: isDragEnd}">
+            <div class="rotation-header">
+                <span class="header-title">Priority Rotation</span>
+                <span class="header-note">Evaluated in order after opening sequence</span>
+            </div>          
             <div
                 class="apl-item"
                 :class="[
@@ -309,10 +328,6 @@ const deleteFixedSequenceAction = (index) => {
                 v-for="(item, index) in modelValue.items"
                 :key="item.id"
             >
-                <div class="rotation-header">
-                    <h4>Priority Rotation</h4>
-                    <span class="rotation-note">Actions are evaluated in order after the opening sequence</span>
-                </div>            
                 <div class="header">
                     <button class="toggle" @click="collapseToggle(item.id)">
                         <span v-if="isCollapsed(item.id)">
@@ -359,6 +374,36 @@ const deleteFixedSequenceAction = (index) => {
         </div>
         <div class="apl-buttons">
             <button class="btn btn-primary" @click="createItem">New action</button>
+        </div>
+        <!-- Default Action Section -->
+        <div class="apl-default-action">
+            <div class="default-action-header">
+                <span class="header-title">Default Action</span>
+                <span class="header-note">Executed when no priority conditions are met</span>
+            </div>
+            <div class="apl-item default-action" :class="[
+                    isCollapsed(modelValue.defaultAction.id) ? 'collapsed' : 'expanded',
+                    'status-'+modelValue.defaultAction.status,
+                ]">
+                <div class="header">
+                    <button class="toggle" @click="collapseToggle(modelValue.defaultAction.id)">
+                        <span v-if="isCollapsed(modelValue.defaultAction.id)">
+                            <micon icon="add" /><tooltip>Expand</tooltip>
+                        </span>
+                        <span v-else>
+                            <micon icon="remove" /><tooltip>Collapse</tooltip>
+                        </span>
+                    </button>
+                </div>
+                <div class="title" v-if="isCollapsed(modelValue.defaultAction.id)" @click="collapseToggle(modelValue.defaultAction.id)">
+                    {{ defaultActionTitle() }}
+                </div>
+                <div class="body" v-else>
+                    <apl-action v-model="modelValue.defaultAction.action" :player="props.player" @update:modelValue="changed" />
+                </div>
+            </div>
+        </div>
+        <div class="apl-buttons">
             <button class="btn btn-secondary right" @click="emits('save')">Save rotation</button>
         </div>
         <div class="dragger" v-if="dragging.id" :style="{transform: 'translate3d('+dragging.x+'px,'+dragging.y+'px,0)'}"></div>

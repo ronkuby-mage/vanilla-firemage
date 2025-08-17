@@ -244,6 +244,27 @@
             float: right;
         }
     }
+    .rotation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 5px;
+        padding: 5px 10px;
+        background: var(--color-bg1);
+        border-left: 3px solid var(--color-primary);
+        
+        .header-title {
+            font-weight: 600;
+            font-size: 18px;
+            color: var(--color-white);
+        }
+        
+        .header-note {
+            font-size: 11px;
+            color: var(--color-grey);
+            font-style: italic;
+        }
+    }
    
     .apl-fixed-sequence {
         margin-bottom: 15px;
@@ -260,8 +281,8 @@
             
             .header-title {
                 font-weight: 600;
-                font-size: 13px;
-                color: var(--color-primary);
+                font-size: 18px;
+                color: var(--color-white);
             }
             
             .header-note {
@@ -272,11 +293,12 @@
         }
         
         .apl-item.fixed-sequence {
-            border: 1px solid var(--color-primary);
             background: var(--color-bg1);
             
             .header {
-                background: var(--color-primary);
+                background: var(--color-bg1);
+                min-height: 20px; /* or whatever height matches normal headers */
+                padding: 4px 5px; /* increase vertical padding */
                 
                 button {
                     color: white;
@@ -296,7 +318,7 @@
                 .apl-sequence {
                     .apl-action {
                         margin-top: 5px;
-                        padding-left: 0;
+                        padding-left: 20px;
                         
                         .apl-action {
                             padding-left: 20px;
@@ -307,8 +329,75 @@
                         margin: 10px 0 0 0;
                     }
                 }
+
+            }
+
+
+        }
+        .apl-item.fixed-sequence.collapsed {
+        
+            > .title {
+                background: var(--color-bg1);
+                padding: 4px 5px;
+                padding-left: 15px;
+            }
+        }    
+    }
+    .apl-default-action {
+        margin-top: 15px;
+        margin-bottom: 20px;
+        
+        .default-action-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            background: var(--color-bg1);
+            border-left: 3px solid var(--color-primary);
+            
+            .header-title {
+                font-weight: 600;
+                font-size: 18px;
+                color: var(--color-white);
+            }
+            
+            .header-note {
+                font-size: 11px;
+                color: var(--color-grey);
+                font-style: italic;
             }
         }
-    
+        
+        .apl-item.default-action {
+            background: var(--color-bg1);
+            
+            .header {
+                background: var(--color-bg1);
+                min-height: 20px; /* or whatever height matches normal headers */
+                padding: 4px 5px; /* increase vertical padding */
+                
+                button {
+                    color: white;
+                    &:hover { color: var(--color-primary-light); }
+                }
+            }
+            
+            .drag { display: none; }
+            
+            > .title {
+                background: var(--color-primary);
+                color: white;
+            }
+
+        }
+        .apl-item.default-action.collapsed {
+            
+            > .title {
+                background: var(--color-bg1);
+                padding: 4px 5px;
+                padding-left: 15px;
+            }
+        }
     }
 }

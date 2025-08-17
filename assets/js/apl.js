@@ -109,7 +109,12 @@ export default {
                     target_id: 1,
                     sequence: [this.action()], // Start with one default action
                 }
-            }            
+            },
+            defaultAction: {
+                id: "default-action",
+                status: true,
+                action: this.action()
+            }
         };
     },
     item() {

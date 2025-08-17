@@ -1,0 +1,432 @@
+//! orchestration.rs — high-level driver and initialization
+use rand::RngCore;
+use rand::SeedableRng;
+use rand::Rng; // bring trait into scope
+use rand::rngs::OsRng;
+use rand_pcg::Pcg64Mcg;
+use rand_distr::{Normal, Distribution};
+use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
+use crate::constants::{Buff, Constants, ConstantsConfig, ConsumeBuff, RaidBuff, WorldBuff, Racial, BossType};
+use crate::state::{State};
+use crate::decisions::Decider;
+
+
+// ---- Parameters mirrored from Python inputs (trimmed first pass) ----
+#[derive(Debug, Clone)]
+pub struct Stats { pub spell_power: Vec<f64>, pub crit_chance: Vec<f64>, pub hit_chance: Vec<f64>, pub intellect: Vec<f64> }
+
+fn has_idx<K: Eq + std::hash::Hash>(map: &std::collections::HashMap<K, Vec<usize>>, key: K, idx: usize) -> bool {
+    map.get(&key).map(|v| v.contains(&idx)).unwrap_or(false)
+}
+
+#[derive(Debug, Clone)]
+pub struct Buffs {
+    // NEW: per-mage buff assignment by index
+    pub consumes: HashMap<ConsumeBuff, Vec<usize>>,
+    pub raid:     HashMap<RaidBuff,     Vec<usize>>,
+    pub world:    HashMap<WorldBuff,    Vec<usize>>,
+    pub boss: BossType,
+    pub auras_mage_atiesh: Vec<usize>,
+    pub auras_lock_atiesh: Vec<usize>,
+    pub auras_boomkin: Vec<usize>,
+    pub racial: Vec<Racial>,
+}
+#[derive(Debug, Clone)]
+pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial_delay: f64, pub recast_delay: f64 }
+
+#[derive(Debug, Clone)]
+pub struct Configuration {
+    pub num_mages: usize,
+    pub target: Vec<usize>,
+    pub buff_assignments: HashMap<Buff, Vec<usize>>,
+    pub udc: Vec<usize>,
+    pub nightfall: Vec<f64>,
+    pub dragonling: f64,
+    pub boss: BossType,
+    pub coe: bool,
+}
+impl Configuration {
+    pub fn new() -> Self {
+        let mut buff_assignments = HashMap::new();
+        buff_assignments.insert(Buff::Sapp, vec![]);
+        buff_assignments.insert(Buff::Toep, vec![]);
+        buff_assignments.insert(Buff::Zhc, vec![]);
+        buff_assignments.insert(Buff::Mqg, vec![]);
+        buff_assignments.insert(Buff::PowerInfusion, vec![]);
+
+        Self {
+            num_mages: 0,
+            target: vec![],
+            buff_assignments,
+            udc: vec![],
+            nightfall: vec![],
+            dragonling: f64::INFINITY,
+            boss: BossType::None,
+            coe: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SimParams {
+    pub stats: Stats,
+    pub buffs: Buffs,
+    pub timing: Timing,
+    pub config: Configuration,
+    pub consts_cfg: ConstantsConfig,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SimResult { pub total_dps: f64, pub ignite_dps: f64, pub player_dps: f64 }
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpellResult {
+    #[default]
+    None,
+    Hit,
+    Crit,
+    Miss,
+    Pending,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub enum LogType {
+    #[default]
+    None,
+    CastStart,
+    CastSuccess,
+    SpellImpact,
+    IgniteTick,
+    Debug,
+    Wait,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct LogEntry {
+    pub log_type: LogType,
+    pub unit_name: String,
+    pub text: String,
+    pub t: f64,
+    pub dps: f64,
+    pub total_dps: f64,
+    pub ignite_dps: f64,
+    pub value: f64,
+    pub value2: f64,
+    pub spell_result: SpellResult,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct PlayerResult {
+    pub dmg: u64,
+    pub dps: f64,
+    pub ignite_dmg: u64,
+    pub ignite_dps: f64,
+    pub name: String,
+}
+
+// Result from one run
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct SimulationResult {
+    pub t: f64,
+    pub dmg: u64,
+    pub dps: f64,
+    pub ignite_dmg: u64,
+    pub ignite_dps: f64,
+    pub players: Vec<PlayerResult>,
+    pub log: Vec<LogEntry>,
+}
+
+// Result from multiple runs
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct SimulationsResult {
+    pub iterations: i32,
+    pub dps: f64,
+    pub min_dps: f64,
+    pub max_dps: f64,
+    pub ignite_dps: f64,
+    pub players: Vec<PlayerResult>,
+    pub histogram: HashMap<u32, u32>,
+    pub ignite_histogram: HashMap<u32, u32>,
+}
+
+// ---- Helpers ----
+fn sample_duration<R: Rng + ?Sized>(tim: &Timing, rng: &mut R) -> f64 {
+    let normal = Normal::new(tim.duration_mean, tim.duration_sigma).unwrap();
+    normal.sample(rng)
+    //(tim.duration_mean + tim.duration_sigma * Rng::r#gen::<f64>(rng)).max(1.0)
+}
+
+fn first_action_offsets<R: Rng + ?Sized>(num_mages: usize, initial_delay: f64, rng: &mut R) -> Vec<f64> {
+    //let mut rng = Pcg64Mcg::seed_from_u64(9);
+    let normal = Normal::new(0.0, initial_delay).unwrap();
+    (0..num_mages).map(|_| normal.sample(rng)).collect()
+    //(0..num_mages).map(|_| (initial_delay * Rng::r#gen::<f64>(rng)).abs()).collect()
+}
+
+fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
+ 
+    // 1) Intellect pipeline 
+    for i in 0..stats.intellect.len() {
+        let mut intel = stats.intellect[i];
+
+        // base
+        intel += buffs.racial[i].base_intellect();
+
+        // flat adds
+        if has_idx(&buffs.raid, RaidBuff::ArcaneIntellect, i) { intel += 31.0; }
+        if has_idx(&buffs.raid, RaidBuff::ImprovedMark, i) { intel += 1.35 * 12.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::StormwindGiftOfFriendship, i) { intel += 30.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::InfallibleMind, i) { intel += 25.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::RunnTumTuberSurprise, i) { intel += 10.0; }
+        if has_idx(&buffs.world, WorldBuff::SongflowerSerenade, i) { intel += 15.0; }
+
+        // multiplicative
+        let kings = if has_idx(&buffs.raid, RaidBuff::BlessingOfKings, i) { 1.10 } else { 1.0 };
+        let soz   = if has_idx(&buffs.world, WorldBuff::SpiritOfZandalar, i) { 1.15 } else { 1.0 };
+        let racial: f64 = buffs.racial[i].intellect_multiplier();
+        intel = intel * kings * soz * racial;
+        stats.intellect[i] = intel;
+    }
+
+    // 2) Spell power buffs
+    for (i, sp) in stats.spell_power.iter_mut().enumerate() {
+
+        if has_idx(&buffs.consumes, ConsumeBuff::GreaterArcaneElixir, i) { *sp += 35.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::ElixirOfGreaterFirepower, i) { *sp += 40.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::FlaskOfSupremePower, i) { *sp += 150.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::BlessedWizardOil, i) { *sp += 60.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::BrilliantWizardOil, i) { *sp += 36.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::VeryBerryCream, i) { *sp += 23.0; }
+        *sp += 33.0 * buffs.auras_lock_atiesh.get(i).copied().unwrap_or(0) as f64;
+    }
+
+    // 3) Crit chance buffs (uses UPDATED intellect)
+    for (i, cc) in stats.crit_chance.iter_mut().enumerate() {
+        *cc += 0.062; // base + talents 
+        if has_idx(&buffs.consumes, ConsumeBuff::BrilliantWizardOil, i) { *cc += 0.01; }
+        if has_idx(&buffs.world, WorldBuff::RallyingCryOfTheDragonslayer, i) { *cc += 0.10; }
+        if has_idx(&buffs.world, WorldBuff::SongflowerSerenade, i) { *cc += 0.05; }
+        if has_idx(&buffs.world, WorldBuff::DireMaulTribute, i) { *cc += 0.03; }
+        *cc += stats.intellect[i] / 5950.0; // intellect → crit
+        *cc += 0.60 * (buffs.boss == BossType::Loatheb) as i32 as f64;
+        *cc += 0.02 * buffs.auras_mage_atiesh.get(i).copied().unwrap_or(0) as f64;
+        *cc += 0.03 * buffs.auras_boomkin.get(i).copied().unwrap_or(0) as f64;
+        if *cc > 1.0 { *cc = 1.0; }
+    }
+
+    // 4) Hit chance floor/cap
+    for hc in &mut stats.hit_chance { *hc = (*hc + 0.89).min(0.99); }
+}
+
+fn init_state<R: Rng + ?Sized>(p: &SimParams, rng: &mut R, idx: u64) -> State {
+    use crate::constants as C;
+
+    let num = p.config.num_mages;
+    let mut st = State::new(sample_duration(&p.timing, rng), num);
+
+    st.log_enabled = idx == 0;
+
+    st.meta.cleaner_slots = p.config.udc.clone();
+    st.meta.target_slots = p.config.target.clone();
+    st.meta.dmf_slots = p.buffs.world.get(&WorldBuff::SaygesDarkFortuneOfDamage).unwrap().clone().to_vec();
+    st.meta.vulnerability = if p.buffs.boss == BossType::Thaddius { 1.0 + C::THADDIUS_BUFF } else { 1.0 };
+    st.meta.nightfall_period = p.config.nightfall.clone();
+    st.meta.coe = if p.config.coe { C::COE_MULTIPLIER } else { 1.0 };
+    st.boss.nightfall = p.config.nightfall.clone(); // start the swing timers
+    st.boss.dragonling_start = p.config.dragonling;
+
+    // Per-lane stats
+    let offsets = first_action_offsets(num, p.timing.initial_delay, rng);
+    for i in 0..num {
+        let l = &mut st.lanes[i];
+        l.cast_timer = offsets[i];
+        l.hit_chance = p.stats.hit_chance[i];
+        l.crit_chance = p.stats.crit_chance[i];
+        l.spell_power = p.stats.spell_power[i];
+        // Buff availability: PI, trinkets that are assigned get 0 cooldown to open
+        for cooldown in l.buff_cooldown.iter_mut() { *cooldown = f64::INFINITY; }
+        if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
+        // Others could come from config similarly
+    }
+
+    for lane_idx in 0..st.lanes.len() {
+        for (buff, indices) in &p.config.buff_assignments {
+            if indices.contains(&lane_idx) {
+                if let Some(lane) = st.lanes.get_mut(lane_idx) {
+                    lane.buff_cooldown[*buff as usize] = 0.0;
+                }
+            }
+        }
+    }
+
+    st
+}
+
+/// Print SP / Hit / Crit / Int for each mage, plus which buffs are currently ready (cooldown <= 0).
+/// Call this right after `init_state(...)` inside `run_single`.
+pub fn display_party_stats(st: &State, intellect: Option<&[f64]>) {
+    // If you add/remove buffs, update this list to match Buff order/variants.
+    let known_buffs: &[(Buff, &str)] = &[
+        (Buff::Sapp, "sapp"),
+        (Buff::Toep, "toep"),
+        (Buff::Zhc,  "zhc"),
+        (Buff::Mqg,  "mqg"),
+        (Buff::PowerInfusion, "pi"),
+    ];
+
+    log::debug!("\n=== Player Stats ===");
+    for (i, lane) in st.lanes.iter().enumerate() {
+        // gather ready buffs
+        let mut ready: Vec<&str> = Vec::new();
+        for (b, label) in known_buffs {
+            let idx = *b as usize;
+            if lane.buff_cooldown.get(idx).map(|&cd| cd <= 0.0).unwrap_or(false) {
+                ready.push(*label);
+            }
+        }
+        let ready_str = if ready.is_empty() { "-".to_string() } else { ready.join(",") };
+
+        // intellect if provided; otherwise show "-"
+        let int_str = intellect
+            .and_then(|ints| ints.get(i).copied())
+            .map(|v| format!("{:.0}", v))
+            .unwrap_or_else(|| "-".to_string());
+
+        log::debug!(
+            "Mage {:>2}: SP={:>4.0}  Hit={:>5.2}%  Crit={:>5.2}%  Int={}  Ready=[{}]",
+            i,
+            lane.spell_power,
+            100.0 * lane.hit_chance,
+            100.0 * lane.crit_chance,
+            int_str,
+            ready_str
+        );
+    }
+}
+
+
+fn os_seed() -> u64 {
+    let mut bytes = [0u8; 8];
+    OsRng.fill_bytes(&mut bytes);
+    u64::from_le_bytes(bytes)
+}
+
+pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, idx: u64) -> SimulationResult {
+
+    let mut rng = if idx == 0 { Pcg64Mcg::seed_from_u64(seed) } else { Pcg64Mcg::seed_from_u64(os_seed()) };
+    //let mut rng = if idx == 0 { Pcg64Mcg::seed_from_u64(seed) } else { Pcg64Mcg::seed_from_u64(0) };
+
+    // Build constants and bake stats
+    let k = Constants::new(&params.consts_cfg);
+    let mut baked_params = params.clone();
+
+    apply_buffs(&mut baked_params.stats, &params.buffs);
+
+    // Init state
+    let mut st = init_state(&baked_params, &mut rng, idx);
+
+    if st.log_enabled {
+    // show effective stats & ready buffs
+        display_party_stats(&st, Some(&baked_params.stats.intellect));
+    }
+
+    while st.in_progress() {
+        
+        if let Some((lane, action, react_sigma)) = decider.next_action(&st) {
+            // sample reaction time
+            let normal = Normal::new(0.0, react_sigma).unwrap();
+            let react: f64 = normal.sample(&mut rng).abs();
+            st.start_action(lane, action, react, &k);
+        }
+
+        // step one event
+        while !st.decision_gate() && st.in_progress() {
+            st.step_one(&k, &mut rng);
+        }
+    }
+
+    // Aggregate DPS
+    let dur = st.global.duration.max(1e-9);
+    let mut players = Vec::<PlayerResult>::new();
+    for i in 0..st.lanes.len() {
+        let dmg = st.lanes[i].damage;
+        let total_dmg = dmg + st.totals.ignite_damage / (st.lanes.len() as f64);
+        //log::debug!("{:3} player {} amount {:4.}", idx, i, (st.lanes.len() as f64) * dmg/dur);
+        players.push(PlayerResult {
+            name: format!("mage {}", i),
+            dmg: dmg as u64,
+            dps: dmg  /dur,
+            ignite_dmg: total_dmg as u64,
+            ignite_dps: total_dmg /dur,
+        });
+    }
+
+    let result = SimulationResult {
+        t: dur,
+        dmg: (st.totals.total_damage + st.totals.ignite_damage) as u64,
+        dps: (st.totals.total_damage + st.totals.ignite_damage) /dur,
+        ignite_dmg: st.totals.ignite_damage as u64,
+        ignite_dps: st.totals.ignite_damage /dur,
+        players: players.clone(),
+        log: st.log.clone(),
+    };
+
+    result.clone()
+}
+
+pub fn run_many_with<D, F>(params: &SimParams, make_decider: F, iterations: i32, seed: u64) -> SimulationsResult
+where
+    D: Decider,
+    F: Fn() -> D,
+{
+    // (1..=n)
+    //     .map(|i| {
+    //         let mut dec = make_decider();            // <-- fresh instance each iteration
+    //         run_single(params, &mut dec, seed, i as u64)
+    //     })
+    //     .collect()
+    let mut result: SimulationsResult = SimulationsResult { iterations, ..Default::default() };
+    let bin_size: f64 = 50.0;
+
+    for idx in 1..=iterations {
+        // Fresh decider for each iteration
+        let mut decider = make_decider();
+
+        // If you want a per-iter seed, keep passing i as u64 like before
+        let sim_result = run_single(params, &mut decider, seed, idx as u64);
+
+        result.dps += sim_result.dps / (iterations as f64);
+        result.ignite_dps += (sim_result.ignite_dps as f64) / (iterations as f64);
+
+        if idx == 1 || sim_result.dps < result.min_dps {
+            result.min_dps = sim_result.dps;
+        }
+        if idx == 1 || sim_result.dps > result.max_dps {
+            result.max_dps = sim_result.dps;
+        }
+
+        let bin = ((sim_result.dps / bin_size).floor() * bin_size) as u32;
+        if let Some(num) = result.histogram.get_mut(&bin) {
+            *num += 1;
+        } else {
+            result.histogram.insert(bin, 1);
+        }
+
+        if idx == 1 {
+            result.players.clone_from(&sim_result.players);
+            for (jdx, pr) in sim_result.players.iter().enumerate() {
+                result.players[jdx].dps /= (iterations as f64);
+            }
+        } else {
+            for (jdx, pr) in sim_result.players.iter().enumerate() {
+                result.players[jdx].dps += pr.dps / (iterations as f64);
+            }
+        }
+    }
+    for jdx in 0..result.players.len() {
+        result.players[jdx].ignite_dps = 0.0;
+    }
+
+    result  
+}

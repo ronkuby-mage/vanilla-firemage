@@ -1,0 +1,7 @@
+DONE * pass udc and trinket information to sim
+DONE add target & power infusion (check boxes) to player
+DONE add boss type, dragonling, and nightfall to raid config
+* fix timing issues
+* rotations
+* stat weights
+* hook in soul_revival and traces of silithst

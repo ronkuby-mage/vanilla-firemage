@@ -32,7 +32,7 @@ pub struct Buffs {
     pub auras_boomkin: Vec<usize>,
     pub racial: Vec<Racial>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial_delay: f64, pub recast_delay: f64 }
 
 #[derive(Debug, Clone)]
@@ -415,8 +415,8 @@ where
 
         if idx == 1 {
             result.players.clone_from(&sim_result.players);
-            for (jdx, pr) in sim_result.players.iter().enumerate() {
-                result.players[jdx].dps /= (iterations as f64);
+            for pr in result.players.iter_mut() {
+                pr.dps /= iterations as f64;
             }
         } else {
             for (jdx, pr) in sim_result.players.iter().enumerate() {

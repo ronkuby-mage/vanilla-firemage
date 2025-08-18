@@ -1,16 +1,13 @@
 use std::collections::HashMap;
 use crate::constants::{
-    ConstantsConfig, Racial, Buff, BossType, Action,
+    ConstantsConfig, Racial, Buff, BossType,
     ConsumeBuff as Cn, RaidBuff as Rd, WorldBuff as Wb,
 };
 use crate::orchestration::Buffs; // <- your Buffs struct
 use crate::orchestration::{SimParams, Stats, Timing, Configuration};
-use crate::decisions::{TeamDecider, ScriptedMage, MageDecider};
-use crate::apl::create_team_decider_from_players;
 use strum::IntoEnumIterator;
 use serde::Deserialize;
 use serde_json::Value;
-use log::debug;
 
 // ---- JS -> Rust legacy shapes (from App.vue / simConfig) ----
 #[derive(Debug, Deserialize)]
@@ -200,11 +197,11 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         // Atiesh aura flags (if you model them as per-mage scalar auras, handle elsewhere)
         // p.atiesh_mage / p.atiesh_warlock could feed your auras_mage_atiesh / auras_lock_atiesh
     }
-    log::debug!("World buffs assignments:");
-    for (buff, lanes) in world.clone().into_iter() {
-        debug!("{:?} -> {:?}", buff, lanes);
-    }
-    log::debug!("Done");
+    // log::debug!("World buffs assignments:");
+    // for (buff, lanes) in world.clone().into_iter() {
+    //     debug!("{:?} -> {:?}", buff, lanes);
+    // }
+    // log::debug!("Done");
 
     let boss: BossType = match cfg.boss.as_deref() {
         Some("Loatheb") => BossType::Loatheb,
@@ -222,14 +219,6 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         auras_boomkin: auras_boomkin,
         racial: racials,
     };
-
-
-    // --- Configuration ---
-    // let targets_requested = cfg.targets.unwrap_or(1);
-    // Represent "targets" as a set of mage indices (take the first T mages or clamp)
-    // let t = targets_requested.min(nm.max(1));
-    // let target: Vec<usize> = (0..t).collect();
-
     
     let mut buff_assignments: HashMap<Buff, Vec<usize>> = HashMap::new();
     for k in Buff::iter() { buff_assignments.entry(k).or_default(); }
@@ -245,12 +234,11 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         if p.is_target.unwrap_or(false) { target.push(i); }
         if p.has_pi.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::PowerInfusion, i); }
     }
-    log::debug!("Buffs assignments:");
-    for (buff, lanes) in buff_assignments.clone().into_iter() {
-        debug!("{:?} -> {:?}", buff, lanes);
-    }
-    log::debug!("Done");
-    //let dragonling: f64 = f64::INFINITY;
+    // log::debug!("Buffs assignments:");
+    // for (buff, lanes) in buff_assignments.clone().into_iter() {
+    //     debug!("{:?} -> {:?}", buff, lanes);
+    // }
+    // log::debug!("Done");
     let dragonling: f64 = cfg.arcanite_dragonling.as_ref().and_then(parse_f64).unwrap_or(f64::INFINITY);
     let nightfall: Vec<f64> = [cfg.nightfall1, cfg.nightfall2, cfg.nightfall3].into_iter().filter_map(|opt| opt.as_ref().and_then(parse_f64)).map(|f| f.max(1.0)).collect();
     let coe:bool = if cfg.curse_of_elements.unwrap_or(false) { true } else {false};
@@ -271,19 +259,26 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     SimParams { stats, buffs, timing, config, consts_cfg }
 }
 
-pub fn convert_legacy_to_simparams_with_decider(cfg: LegacyConfig) -> (SimParams, TeamDecider) {
+fn extract_players_apls(players: &Vec<LegacyPlayer>) -> Vec<Option<serde_json::Value>> {
+    players.iter().map(|player| player.apl.clone()).collect()
+}
 
-    // --- Timing ---
+pub fn convert_legacy_to_simparams_and_players_data(cfg: LegacyConfig) -> (SimParams, Vec<Option<serde_json::Value>>) {
+    // ... existing logic to create params ...
+    // Extract/convert players data before it gets consumed
+    let players_data = extract_players_apls(&cfg.players);
+
+        // --- Timing ---
     let timing = Timing {
         duration_mean: cfg.duration.unwrap_or(0.0),                   // keep your default or derive from UI
         duration_sigma: cfg.duration_variance.unwrap_or(0.0),
         recast_delay: cfg.reaction_time.unwrap_or(0.0),
         initial_delay: cfg.player_delay.unwrap_or(0.0),
     };
-    let team_decider = create_team_decider_from_players(&cfg.players, &timing);
     let sim_params = convert_legacy_to_simparams_internal(cfg, timing);
 
-    (sim_params, team_decider)
+    (sim_params, players_data)
 }
+
 
 

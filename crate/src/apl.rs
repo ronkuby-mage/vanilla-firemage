@@ -2,7 +2,6 @@ use serde::{Serialize, Deserialize};
 use crate::constants::Action;
 use crate::orchestration::Timing;
 use crate::decisions::{TeamDecider, ScriptedMage, MageDecider};
-use crate::legacy_config::LegacyPlayer;
 use serde_json::Value;
 
 #[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -289,12 +288,12 @@ fn create_scripted_mage_from_apl(apl_value: &Value, timing: &Timing) -> Box<dyn 
     ))
 }
 
-// Function to add to your convert_legacy_to_simparams function
-pub fn create_team_decider_from_players(players: &[LegacyPlayer], timing: &Timing) -> TeamDecider {
+// Adapted function to take Vec<Option<serde_json::Value>> instead of &[LegacyPlayer]
+pub fn create_team_decider_from_apls(apls: &[Option<serde_json::Value>], timing: &Timing) -> TeamDecider {
     let mut mages: Vec<Box<dyn MageDecider>> = Vec::new();
     
-    for player in players {
-        let mage_decider = if let Some(apl_value) = &player.apl {
+    for apl_option in apls {
+        let mage_decider = if let Some(apl_value) = apl_option {
             create_scripted_mage_from_apl(apl_value, timing)
         } else {
             // Fallback for players without APL data
@@ -311,3 +310,4 @@ pub fn create_team_decider_from_players(players: &[LegacyPlayer], timing: &Timin
     
     TeamDecider::new(mages)
 }
+

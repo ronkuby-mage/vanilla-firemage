@@ -4,7 +4,7 @@ import apl from "../apl";
 import { mage as talentTree } from "../talents";
 import items from "../items";
 
-const props = defineProps(["modelValue", "deletable", "player", "isDefault"]);
+const props = defineProps(["modelValue", "deletable", "player"]);
 const emits = defineEmits(["update:modelValue", "delete"]);
 
 const talentNames = talentTree.trees.reduce((a, b) => { return [...a, ...b.talents.rows.flat()]; }, []).map(t => t.name);
@@ -46,17 +46,10 @@ const filterOptions = (options) => {
     return options;
 };
 const actionOptions = computed(() => {
-    if (props.isDefault) {
-        let options = apl.defaultActions();
-        for (let option of options)
-            option.value = option.key;
-        return filterOptions(options);
-    } else {
-        let options = apl.actions();
-        for (let option of options)
-            option.value = option.key;
-        return filterOptions(options);
-    }
+    let options = apl.defaultActions();
+    for (let option of options)
+        option.value = option.key;
+    return filterOptions(options);
 });
 const changeAction = (value) => {
     if (value == "Sequence")
@@ -87,7 +80,7 @@ const changed = () => {
 </script>
 
 <template>
-    <div class="apl-action">
+    <div class="apl-default-action">
         <select-simple
             v-model="props.modelValue.key"
             :options="actionOptions"

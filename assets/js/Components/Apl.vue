@@ -8,6 +8,34 @@ import items from "../items";
 const props = defineProps(["modelValue", "player"]);
 const emits = defineEmits(["update:modelValue", "save"]);
 
+// DEFINE the migration function
+const ensureAplStructure = () => {
+    if (!props.modelValue.fixedSequence) {
+        props.modelValue.fixedSequence = {
+            id: "fixed-sequence",
+            status: true,
+            condition: apl.condition(),
+            action: {
+                id: "fixed-sequence-action",
+                key: "Sequence",
+                target_id: 1,
+                sequence: [apl.action()],
+            }
+        };
+    }
+
+    if (!props.modelValue.defaultAction) {
+        props.modelValue.defaultAction = {
+            id: "default-action",
+            status: true,
+            action: apl.action()
+        };
+    }
+};
+
+// CALL it immediately after definition - THIS IS WHERE TO PUT IT
+ensureAplStructure();
+
 /*
  * Collapse
  */
@@ -177,21 +205,6 @@ watch(() => props.modelValue.id, (value) => {
     }
 });
 onMounted(() => {
-    // Ensure backward compatibility - add fixed sequence if it doesn't exist
-    if (!props.modelValue.fixedSequence) {
-        props.modelValue.fixedSequence = {
-            id: "fixed-sequence",
-            status: true,
-            condition: apl.condition(),
-            action: {
-                id: "fixed-sequence-action",
-                key: "Sequence",
-                target_id: 1,
-                sequence: [apl.action()],
-            }
-        };
-        changed();
-    }
     
     // Existing event listeners
     window.addEventListener("mousemove", onDragMove);
@@ -240,7 +253,7 @@ if (!props.modelValue.defaultAction) {
     };
 }
 const defaultActionTitle = () => {
-    let action = apl.actions().find(a => a.key == props.modelValue.defaultAction.action.key);
+    let action = apl.defaultActions().find(a => a.key == props.modelValue.defaultAction.action.key);
     if (action) {
         if (action.item) {
             let item = items.gear[action.title].find(i => i.id == action.item);
@@ -399,7 +412,7 @@ const defaultActionTitle = () => {
                     {{ defaultActionTitle() }}
                 </div>
                 <div class="body" v-else>
-                    <apl-action v-model="modelValue.defaultAction.action" :player="props.player" @update:modelValue="changed" />
+                    <apl-action v-model="modelValue.defaultAction.action" :player="props.player" :isDefault="true" @update:modelValue="changed" />
                 </div>
             </div>
         </div>

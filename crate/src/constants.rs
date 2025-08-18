@@ -25,24 +25,24 @@ impl fmt::Display for Spell {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Action {
     // Castable spells
-    Scorch = 0,
-    Pyroblast = 1,
-    Fireball = 2,
-    FireBlast = 3,
-    Frostbolt = 4,
+    Scorch,
+    Pyroblast,
+    Fireball,
+    FireBlast,
+    Frostbolt,
     // Pseudo-cast for pushing GCD-only waits
-    Gcd = 5,
+    #[default]
+    Gcd,
     // Instants / external sources (non-GCD spells in the Python model)
-    Combustion = 6,
-    Sapp = 7,
-    Toep = 8,
-    Zhc = 9,
-    Mqg = 10,
-    PowerInfusion = 11,
+    Combustion,
+    Sapp,
+    Toep,
+    Zhc,
+    Mqg,
+    PowerInfusion,
 }
 
 impl fmt::Display for Action {

@@ -5,11 +5,12 @@ pub mod state;
 pub mod decisions;
 pub mod orchestration;
 pub mod legacy_config; // if you added it
+pub mod apl;
 
 use wasm_bindgen::prelude::*;
 use serde_wasm_bindgen::{from_value, to_value};
 use crate::orchestration::{SimParams, run_single, run_many_with, SimulationResult, SimulationsResult};
-use crate::legacy_config::{LegacyConfig, convert_legacy_to_simparams};
+use crate::legacy_config::{LegacyConfig, convert_legacy_to_simparams_with_decider};
 use crate::constants::Action;
 use crate::decisions::{TeamDecider, MageDecider, ScriptedMage};
 use console_error_panic_hook;
@@ -35,7 +36,7 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
     //console_error_panic_hook::set_once();
     //console_log::init_with_level(Level::Debug).expect("error initializing log");
     let legacy: LegacyConfig = from_value(cfg_js).expect("bad config from JS");
-    let params: SimParams = convert_legacy_to_simparams(legacy);
+    let (params, mut decider) = convert_legacy_to_simparams_with_decider(legacy);
 
     let make_decider = || build_team_decider(&params);
 
@@ -53,9 +54,12 @@ pub fn run_simulation(cfg_js: JsValue) -> JsValue {
     log::debug!("Engine made it this far.");
 
     let legacy: LegacyConfig = from_value(cfg_js).expect("bad config from JS");
-    let params: SimParams = convert_legacy_to_simparams(legacy);
 
-    let mut decider: TeamDecider = build_team_decider(&params);
+    let (params, mut decider) = convert_legacy_to_simparams_with_decider(legacy);
+    //let params: SimParams = convert_legacy_to_simparams(legacy);
+
+    //let players = &legacy.players;
+    //let mut decider: TeamDecider = create_team_decider_from_players(&players, &params.timing);
 
     let seed = 42u64; // or take from legacy.rng_seed.unwrap_or(42)
     let result: SimulationResult = run_single(&params, &mut decider, seed, 0);
@@ -73,7 +77,7 @@ pub fn run_simulation(cfg_js: JsValue) -> JsValue {
     //     "player_dps_per_target": result.player_dps / targets,
     //     // add min/max/hist if the UI expects them
     // });
-    log::debug!("Engine made it THIS!!!!! far.");
+    log::debug!("Engine made it THIS!!!!! far. {:?}", result);
 
     to_value(&result).unwrap()
 }

@@ -91,6 +91,15 @@ export default {
             { key: "PowerInfusion", title: "External: Power Infusion" },
         ];
     },
+    defaultActions() {
+        return [
+            { key: "Fireball", title: "Cast: Fireball" },
+            { key: "Frostbolt", title: "Cast: Frostbolt" },
+            { key: "Pyroblast", title: "Cast: Pyroblast", talent: "pyroblast" },
+            { key: "Scorch", title: "Cast: Scorch" },
+        ];
+    },
+
 
     apl() {
         return {
@@ -102,7 +111,6 @@ export default {
             fixedSequence: {
                 id: "fixed-sequence",
                 status: true,
-                condition: this.condition(),
                 action: {
                     id: "fixed-sequence-action", 
                     key: "Sequence",
@@ -163,7 +171,6 @@ export default {
         }
         return action;
     },
-
     isPreset(id) {
         return id.indexOf("preset") === 0;
     },

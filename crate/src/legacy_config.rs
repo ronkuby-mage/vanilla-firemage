@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 use crate::constants::{
-    ConstantsConfig, Racial, Buff, BossType,
+    ConstantsConfig, Racial, Buff, BossType, Action,
     ConsumeBuff as Cn, RaidBuff as Rd, WorldBuff as Wb,
 };
 use crate::orchestration::Buffs; // <- your Buffs struct
 use crate::orchestration::{SimParams, Stats, Timing, Configuration};
+use crate::decisions::{TeamDecider, ScriptedMage, MageDecider};
+use crate::apl::create_team_decider_from_players;
 use strum::IntoEnumIterator;
 use serde::Deserialize;
 use serde_json::Value;
@@ -120,9 +122,8 @@ fn parse_f64(v: &Value) -> Option<f64> {
     }
 }
 
-
-pub fn convert_legacy_to_simparams(cfg: LegacyConfig) -> SimParams {
-
+// Rename your existing function to this:
+fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> SimParams {
     log::debug!("LegacyConfig (Debug): {:#?}", cfg);
     let nm = cfg.players.len();
 
@@ -264,6 +265,13 @@ pub fn convert_legacy_to_simparams(cfg: LegacyConfig) -> SimParams {
         boss: boss,
         coe: coe,
     };
+    // Constants config: carry defaults unless you expose knobs in UI
+    let consts_cfg = ConstantsConfig::default();
+
+    SimParams { stats, buffs, timing, config, consts_cfg }
+}
+
+pub fn convert_legacy_to_simparams_with_decider(cfg: LegacyConfig) -> (SimParams, TeamDecider) {
 
     // --- Timing ---
     let timing = Timing {
@@ -272,9 +280,10 @@ pub fn convert_legacy_to_simparams(cfg: LegacyConfig) -> SimParams {
         recast_delay: cfg.reaction_time.unwrap_or(0.0),
         initial_delay: cfg.player_delay.unwrap_or(0.0),
     };
+    let team_decider = create_team_decider_from_players(&cfg.players, &timing);
+    let sim_params = convert_legacy_to_simparams_internal(cfg, timing);
 
-    // Constants config: carry defaults unless you expose knobs in UI
-    let consts_cfg = ConstantsConfig::default();
-
-    SimParams { stats, buffs, timing, config, consts_cfg }
+    (sim_params, team_decider)
 }
+
+

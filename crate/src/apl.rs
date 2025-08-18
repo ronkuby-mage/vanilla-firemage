@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use crate::constants::Action;
 use crate::orchestration::Timing;
-use crate::decisions::{TeamDecider, ScriptedMage, MageDecider};
+use crate::decisions::{TeamDecider, ScriptedMage, AdaptiveMage, MageDecider};
 use serde_json::Value;
 
 #[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -28,7 +28,7 @@ pub enum AplConditionOp {
     Lte,
 }
 
-#[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum AplValueType {
     #[default]
     None,
@@ -53,7 +53,7 @@ pub struct Apl {
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct AplItem {
     pub condition: AplCondition,
-    pub action: AplAction,
+    pub action: Action,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -62,13 +62,6 @@ pub struct AplCondition {
     pub op: AplConditionOp,
     pub conditions: Vec<AplCondition>,
     pub values: Vec<AplValue>,
-}
-
-#[derive(Default, Serialize, Deserialize, Clone)]
-pub struct AplAction {
-    pub key: Action,
-    pub target_id: i32,
-    pub sequence: Vec<AplAction>,
 }
 
 #[derive(Default, Serialize, Deserialize, Clone)]
@@ -207,8 +200,6 @@ impl From<&Value> for AplValue {
     }
 }
 
-
-
 impl From<&Value> for AplCondition {
     fn from(json: &Value) -> Self {
         let mut condition = AplCondition::default();
@@ -237,6 +228,34 @@ impl From<&Value> for AplCondition {
         
         condition
     }
+}
+
+// Extract priority rotation items from APL JSON
+pub fn extract_items(apl_value: &Value) -> Vec<AplItem> {
+    apl_value
+        .get("items")
+        .and_then(|items| items.as_array())
+        .map(|items_array| {
+            items_array
+                .iter()
+                .map(|item_json| {
+                    let condition = item_json
+                        .get("condition")
+                        .map(|cond| AplCondition::from(cond))
+                        .unwrap_or_default();
+                    
+                    let action = item_json
+                        .get("action")
+                        .and_then(|action_obj| action_obj.get("key"))
+                        .and_then(|key| key.as_str())
+                        .map(apl_key_to_action)
+                        .unwrap_or(Action::Gcd);
+                    
+                    AplItem { condition, action }
+                })
+                .collect()
+        })
+        .unwrap_or_else(Vec::new) // Empty items if not found
 }
 
 // Extract default action from APL JSON
@@ -270,18 +289,19 @@ pub fn extract_fixed_sequence(apl_value: &Value) -> Vec<Action> {
         .unwrap_or_else(Vec::new) // Empty sequence if not found
 }
 
-
-// Create a ScriptedMage from APL data
-fn create_scripted_mage_from_apl(apl_value: &Value, timing: &Timing) -> Box<dyn MageDecider> {
+// Update create_scripted_mage_from_apl function
+fn create_adaptive_mage_from_apl(apl_value: &Value, timing: &Timing) -> Box<dyn MageDecider> {
     let default_action = extract_default_action(apl_value);
     let fixed_sequence = extract_fixed_sequence(apl_value);
+    let items = extract_items(apl_value);
     
     // Use timing values for reaction times
     let initial_react = timing.initial_delay;
     let continuing_react = timing.recast_delay;
     
-    Box::new(ScriptedMage::new(
+    Box::new(AdaptiveMage::new(  // Changed from ScriptedMage to AdaptiveMage
         fixed_sequence,
+        items,
         default_action,
         initial_react,
         continuing_react,
@@ -294,7 +314,7 @@ pub fn create_team_decider_from_apls(apls: &[Option<serde_json::Value>], timing:
     
     for apl_option in apls {
         let mage_decider = if let Some(apl_value) = apl_option {
-            create_scripted_mage_from_apl(apl_value, timing)
+            create_adaptive_mage_from_apl(apl_value, timing)
         } else {
             // Fallback for players without APL data
             Box::new(ScriptedMage::new(

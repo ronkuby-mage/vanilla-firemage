@@ -144,9 +144,9 @@ impl State {
             text: format!("s[{}]", spell),
             unit_name: format!("mage {}", unit_id),
             t: self.global.running_time,
-            dps: self.lanes[unit_id as usize].damage / self.global.running_time,
-            total_dps: self.totals.total_damage / self.global.running_time,
-            ignite_dps: self.totals.ignite_damage / self.global.running_time,
+            dps: if self.global.running_time > 0.0 { self.lanes[unit_id as usize].damage / self.global.running_time } else { 0.0 },
+            total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
+            ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             value: 0.0,
             value2: 0.0,
             spell_result: SpellResult::None,
@@ -159,9 +159,9 @@ impl State {
             text: format!("s[ignite] -> t[{}]", value),
             unit_name: format!("mages"),
             t: self.global.running_time,
-            dps: self.totals.ignite_damage / self.global.running_time,
-            total_dps: self.totals.total_damage / self.global.running_time,
-            ignite_dps: self.totals.ignite_damage / self.global.running_time,
+            dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
+            total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
+            ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             value: value,
             value2: 0.0,
             spell_result: SpellResult::Hit,
@@ -174,9 +174,9 @@ impl State {
             text: format!("s[{}] -> t[{}]", spell, value),
             unit_name: format!("mage {}", unit_id),
             t: self.global.running_time,
-            dps: self.lanes[unit_id as usize].damage / self.global.running_time,
-            total_dps: self.totals.total_damage / self.global.running_time,
-            ignite_dps: self.totals.ignite_damage / self.global.running_time,
+            dps: if self.global.running_time > 0.0 { self.lanes[unit_id as usize].damage / self.global.running_time } else { 0.0 },
+            total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
+            ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             value: value,
             value2: 0.0,
             spell_result: result,
@@ -328,13 +328,14 @@ impl State {
                     if b < C::NUM_DAMAGE_BUFFS {
                         l.buff_ticks[b] = 0;
                     }
-
-                    // Internal cooldown on all *other* dmg trinkets + MQG:
-                    // set their cooldown to at least this buff’s duration
-                    let lock_icd = C::NUM_DAMAGE_BUFFS + 1; // include MQG
-                    for bb in 0..lock_icd {
-                        if bb == b { continue; }
-                        l.buff_cooldown[bb] = l.buff_cooldown[bb].max(C::BUFF_DURATION[b]);
+                    if action != A::PowerInfusion {
+                        // Internal cooldown on all *other* dmg trinkets + MQG:
+                        // set their cooldown to at least this buff’s duration
+                        let lock_icd = C::NUM_DAMAGE_BUFFS + 1; // include MQG
+                        for bb in 0..lock_icd {
+                            if bb == b { continue; }
+                            l.buff_cooldown[bb] = l.buff_cooldown[bb].max(C::BUFF_DURATION[b]);
+                        }
                     }
                 }
                 _ => {}

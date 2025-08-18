@@ -139,6 +139,7 @@ const cooldownOptions = computed(() => {
         //{ value: common.cooldowns.MANA_GEM, title: "Mana Gem" },
         //{ value: common.cooldowns.MANA_POTION, title: "Mana Potion" },
         //{ value: common.cooldowns.CELESTIAL_ORB, title: "off_hand", item: items.ids.CELESTIAL_ORB },
+        { value: common.cooldowns.FIRE_BLAST, title: "Fire Blast" },
         //{ value: common.cooldowns.ROBE_ARCHMAGE, title: "chest", item: items.ids.ROBE_ARCHMAGE },
         //{ value: common.cooldowns.BURST_OF_KNOWLEDGE, title: "trinket", item: items.ids.TRINKET_BURST_OF_KNOWLEDGE },
         //{ value: common.cooldowns.BLUE_DRAGON, title: "trinket", item: items.ids.TRINKET_BLUE_DRAGON },
@@ -183,6 +184,7 @@ const debuffOptions = computed(() => {
     return [
         { value: 0, title: "None" },
         { value: common.auras.FIRE_VULNERABILITY, title: "Fire Vulnerability" },
+        { value: common.auras.IGNITE, title: "Ignite" },
         //{ value: common.auras.WINTERS_CHILL, title: "Winter's Chill" },
     ];
 });

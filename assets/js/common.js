@@ -75,6 +75,7 @@ export default {
         EVOCATION: 12051,
         FIRE_VULNERABILITY: 22959,
         INNERVATE: 29166,
+        IGNITE: 12654,
         PRESENCE_OF_MIND: 12043,
         POWER_INFUSION: 10060,
         WINTERS_CHILL: 12579,

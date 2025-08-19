@@ -172,6 +172,10 @@ export default {
         return action;
     },
     isPreset(id) {
+        // Handle null/undefined id values
+        if (!id || typeof id !== 'string') {
+            return false;
+        }
         return id.indexOf("preset") === 0;
-    },
+    }
 }

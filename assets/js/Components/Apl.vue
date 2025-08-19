@@ -181,8 +181,13 @@ const isDragEnd = computed(() => {
 /*
  * Update
  */
+// Replace the changed function (around line 163-170) with:
 const changed = () => {
-    if (apl.isPreset(props.modelValue.id)) {
+    // Ensure modelValue has an id before checking if it's a preset
+    if (!props.modelValue.id) {
+        props.modelValue.id = common.uuid();
+        props.modelValue.name = "";
+    } else if (apl.isPreset(props.modelValue.id)) {
         props.modelValue.id = common.uuid();
         props.modelValue.name = "";
     }

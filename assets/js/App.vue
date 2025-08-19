@@ -426,11 +426,16 @@ const loadRaids = () => {
                     if (!player.hasOwnProperty(key))
                         player[key] = defPlayer[key];
                 }
-                // Reload preset apl
-                if (aplData.isPreset(player.apl.id)) {
-                    let ap = presets.apls.find(a => a.id == player.apl.id);
-                    if (ap)
-                        player.apl = ap;
+                // Reload preset apl - FIX THIS PART
+                if (player.apl && player.apl.id) {
+                    if (aplData.isPreset(player.apl.id)) {
+                        let ap = presets.apls.find(a => a.id == player.apl.id);
+                        if (ap)
+                            player.apl = ap;
+                    }
+                } else {
+                    // If APL is missing or invalid, set to default
+                    player.apl = presets.apls[0];
                 }
             }
             for (let key in defRaid) {
@@ -1527,13 +1532,19 @@ const loadApls = () => {
     return apls;
 };
 const saveApls = (data) => {
-    data = data.filter(a => !aplData.isPreset(a.id));
-    window.localStorage.setItem("apls", JSON.stringify(data));
+    // Filter out any APLs with null/undefined IDs or preset IDs
+    const validApls = data.filter(a => {
+        if (!a || !a.id) return false;
+        // Check if it's a preset
+        return !aplData.isPreset(a.id);
+    });
+    window.localStorage.setItem("apls", JSON.stringify(validApls));
 };
 const selectApl = (data) => {
-    if (!activePlayer.value)
+    if (!activePlayer.value || !data)
         return;
-    activePlayer.value.apl = data;
+    // Deep clone to prevent reference sharing between players
+    activePlayer.value.apl = _.cloneDeep(data);
 };
 const apls = ref(loadApls());
 const editApl = ref();
@@ -1551,14 +1562,26 @@ const copyPlayerApl = () => {
     nextTick(() => { playerModelCopy.value = null; });
 };
 const editAplOpen = () => {
+    if (!activePlayer.value || !activePlayer.value.apl) {
+        console.error('No active player or APL');
+        return;
+    }
+    
     aplModel.value = _.cloneDeep(activePlayer.value.apl);
+    
+    // Ensure the model has an ID
+    if (!aplModel.value.id) {
+        aplModel.value.id = common.uuid();
+    }
+    
     if (aplData.isPreset(aplModel.value.id)) {
         if (aplModel.value.name == "Blank")
             aplModel.value.name = "";
         else
-            aplModel.value.name+= " copy";
+            aplModel.value.name += " copy";
         aplModel.value.id = common.uuid();
     }
+    
     if (editApl.value)
         editApl.value.open(true);
 };
@@ -1571,6 +1594,16 @@ const deleteApl = (id) => {
 const updateApl = () => {
     if (!aplModel.value)
         return;
+
+    // Ensure the APL has a valid ID
+    if (!aplModel.value.id) {
+        aplModel.value.id = common.uuid();
+    }
+    
+    // If it's a preset being saved as new, give it a new ID
+    if (aplData.isPreset(aplModel.value.id)) {
+        aplModel.value.id = common.uuid();
+    }
 
     let data = _.cloneDeep(aplModel.value);
     let index = _.findIndex(apls.value, {id: data.id});

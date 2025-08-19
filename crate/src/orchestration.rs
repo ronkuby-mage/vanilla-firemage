@@ -144,6 +144,7 @@ pub struct SimulationsResult {
     pub dps: f64,
     pub min_dps: f64,
     pub max_dps: f64,
+    pub ninetieth: f64,
     pub ignite_dps: f64,
     pub players: Vec<PlayerResult>,
     pub histogram: HashMap<u32, u32>,
@@ -391,6 +392,7 @@ where
     //     })
     //     .collect()
     let mut result: SimulationsResult = SimulationsResult { iterations, ..Default::default() };
+   let mut dps_values = Vec::with_capacity(iterations as usize);
     let bin_size: f64 = 50.0;
 
     for idx in 1..=iterations {
@@ -400,8 +402,10 @@ where
         // If you want a per-iter seed, keep passing i as u64 like before
         let sim_result = run_single(params, &mut decider, seed, idx as u64);
 
-        result.dps += sim_result.dps / (iterations as f64);
-        result.ignite_dps += (sim_result.ignite_dps as f64) / (iterations as f64);
+        dps_values.push(sim_result.dps);        
+
+        result.dps += sim_result.dps;
+        result.ignite_dps += sim_result.ignite_dps as f64;
 
         if idx == 1 || sim_result.dps < result.min_dps {
             result.min_dps = sim_result.dps;
@@ -419,17 +423,23 @@ where
 
         if idx == 1 {
             result.players.clone_from(&sim_result.players);
-            for pr in result.players.iter_mut() {
-                pr.dps /= iterations as f64;
-            }
         } else {
             for (jdx, pr) in sim_result.players.iter().enumerate() {
-                result.players[jdx].dps += pr.dps / (iterations as f64);
+                result.players[jdx].dps += pr.dps;
             }
         }
     }
+
+    // Calculate 90th percentile
+    dps_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let percentile_90_index = ((iterations as f64) * 0.9).ceil() as usize - 1;
+    result.ninetieth = dps_values[percentile_90_index.min(iterations as usize - 1)];
+
+    result.dps /= iterations as f64;
+    result.ignite_dps /= iterations as f64;
     for jdx in 0..result.players.len() {
         result.players[jdx].ignite_dps = 0.0;
+        result.players[jdx].dps /= iterations as f64;
     }
 
     result  

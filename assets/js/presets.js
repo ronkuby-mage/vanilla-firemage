@@ -4,159 +4,257 @@ import _ from "lodash";
 
 const defaultApls = () => {
     let data = [];
-    let item, cond;
+    let item, cond, initial_actions, items;
 
-    let manaCds = [];
-    item = apl.item();
-    item.condition.condition_type = apl.condition_type.CMP;
-    item.condition.op = apl.condition_op.GTE;
-    item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.PLAYER_MANA_DEFICIT;
-    item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 2250;
-    item.action = apl.getAction("ManaPotion");
-    manaCds.push(item);
+    let new_fire = apl.apl();
+    new_fire.id = "fire-naxx";
+    new_fire.name = "Fire (Naxx)";
 
-    item = apl.item();
-    item.condition.condition_type = apl.condition_type.AND;
-    cond = apl.condition();
-    cond.condition_type = apl.condition_type.CMP;
-    cond.op = apl.condition_op.GTE;
-    cond.values = [apl.value(), apl.value()];
-    cond.values[0].value_type = apl.value_type.PLAYER_MANA_DEFICIT;
-    cond.values[1].value_type = apl.value_type.CONST;
-    cond.values[1].vfloat = 1200;
-    item.condition.conditions.push(cond);
-    cond = apl.condition();
-    cond.condition_type = apl.condition_type.TRUE;
-    cond.values = [apl.value()];
-    cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
-    cond.values[0].vint = common.cooldowns.MANA_POTION;
-    item.condition.conditions.push(cond);
-    item.action = apl.getAction("ManaGem");
-    manaCds.push(item);
-
-    item = apl.item();
-    item.condition.condition_type = apl.condition_type.AND;
-    cond = apl.condition();
-    cond.condition_type = apl.condition_type.CMP;
-    cond.op = apl.condition_op.GTE;
-    cond.values = [apl.value(), apl.value()];
-    cond.values[0].value_type = apl.value_type.PLAYER_MANA_DEFICIT;
-    cond.values[1].value_type = apl.value_type.CONST;
-    cond.values[1].vfloat = 625;
-    item.condition.conditions.push(cond);
-    cond = apl.condition();
-    cond.condition_type = apl.condition_type.TRUE;
-    cond.values = [apl.value()];
-    cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
-    cond.values[0].vint = common.cooldowns.MANA_GEM;
-    item.condition.conditions.push(cond);
-    item.action = apl.getAction("RobeArchmage");
-    manaCds.push(item);
-
-    item = apl.item();
-    item.condition.condition_type = apl.condition_type.CMP;
-    item.condition.op = apl.condition_op.LT;
-    item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.PLAYER_MANA_PERCENT;
-    item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 10;
-    item.action = apl.getAction("Evocation");
-    manaCds.push(item);
-
-    let cds = [
-        apl.getAction("ArcanePower"),
-        apl.getAction("Combustion"),
+    // default fire
+    initial_actions = apl.action();
+    initial_actions.id = "fixed-sequence-action";
+    initial_actions.key = "Sequence";
+    initial_actions.sequence = [
+        apl.getAction("Scorch"),
+        apl.getAction("Scorch"),
         apl.getAction("EssenceOfSapphiron"),
-        apl.getAction("UnstablePower"),
-        apl.getAction("EphemeralPower"),
-        apl.getAction("ChaosFire"),
-        apl.getAction("MindQuickening"),
-    ];
+        apl.getAction("Combustion"),
+        apl.getAction("Pyroblast"),
+        apl.getAction("PowerInfusion"),
+    ];   
 
-    let fire = apl.apl();
-    fire.id = "preset-fire";
-    fire.name = "Fire";
+    new_fire.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(new_fire);
+
+    // maintain scorch
+    let maintain_scorch = apl.apl();
+    maintain_scorch.id = "fire-naxx-maintain-scorch";
+    maintain_scorch.name = "Maintain Scorch";
+    items = [];    
+
     item = apl.item();
     item.condition.condition_type = apl.condition_type.CMP;
     item.condition.op = apl.condition_op.LT;
     item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.SIM_TIME;
+    item.condition.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
+    item.condition.values[0].vint = common.auras.FIRE_VULNERABILITY;
     item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 1.4;
-    item.action = apl.getAction("Sequence");
-    item.action.sequence = [
-        apl.getAction("Scorch"),
-        apl.getAction("Scorch"),
-        apl.getAction("Frostbolt"),
-        apl.getAction("PowerInfusion"),
-        ...cds.slice(1)
-    ];
-    fire.items.push(item);
-    fire.items = [...fire.items, ...manaCds];
+    item.condition.values[1].vfloat = 5;
+    item.action = apl.getAction("Scorch");
+    items.push(item);
+
+    maintain_scorch.items = _.cloneDeep(items);
+    maintain_scorch.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(maintain_scorch);
+
+    // spam scorch
+    let spam_scorch = apl.apl();
+    spam_scorch.id = "fire-naxx-maintain-scorch";
+    spam_scorch.name = "Spam Scorch";
+    spam_scorch.defaultAction.action = apl.getAction("Scorch");
+    items = [];
+
     item = apl.item();
-    item.action = apl.getAction("Sequence");
-    item.condition.condition_type = apl.condition_type.CMP;
-    item.condition.op = apl.condition_op.GT;
-    item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.SIM_TIME;
-    item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 90;
-    item.action.sequence = cds;
-    fire.items.push(item);
-    item = apl.item();
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.OR;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.TRUE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+    cond.values[0].vint = common.auras.COMBUSTION;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.TRUE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+    cond.values[0].vint = common.auras.ESSENCE_OF_SAPPHIRON;
+    item.condition.conditions.push(cond);
     item.action = apl.getAction("Fireball");
-    fire.items.push(item);
-    data.push(fire);
+    items.push(item);
 
-    let f2 = _.cloneDeep(fire);
-    f2.name = "Fire - delayed combustion"
-    f2.id = "preset-fire-d1";
-    f2.items[0].action.sequence.splice(3, 1); // Remove combustion
-    item = apl.item();
-    item.condition.condition_type = apl.condition_type.CMP;
-    item.condition.op = apl.condition_op.GT;
-    item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.SIM_TIME;
-    item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 10.0;
-    item.action = apl.getAction("Combustion");
-    f2.items.splice(1, 0, item);
-    data.push(f2);
+    spam_scorch.items = _.cloneDeep(items);
+    spam_scorch.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(spam_scorch);
+    
+    // scorch wip
+    let scorch_wip = apl.apl();
+    scorch_wip.id = "fire-naxx-scorch-WIP";
+    scorch_wip.name = "Scorch with Extreme Predujice";
+    items = [];    
 
-    let frost = apl.apl();
-    frost.id = "preset-frost";
-    frost.name = "Frost";
     item = apl.item();
-    item.condition.condition_type = apl.condition_type.CMP;
-    item.condition.op = apl.condition_op.LT;
-    item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.SIM_TIME;
-    item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 1.4;
-    item.action = apl.getAction("Sequence");
-    item.action.sequence = [
-        apl.getAction("Frostbolt"),
-        apl.getAction("PowerInfusion"),
-        ...cds
-    ];
-    frost.items.push(item);
-    frost.items = [...frost.items, ...manaCds];
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.OR;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_STACKS;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
+    cond.values[0].vint = common.auras.FIRE_VULNERABILITY;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    item.action = apl.getAction("Scorch");
+    items.push(item);
+
+    scorch_wip.items = _.cloneDeep(items);
+    scorch_wip.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(scorch_wip);
+
+    // cobimf
+    let cob_imf = apl.apl();
+    cob_imf.id = "fire-naxx-cob-imf";
+    cob_imf.name = "COBIMF";
+    items = [];    
+
     item = apl.item();
-    item.action = apl.getAction("Sequence");
-    item.condition.condition_type = apl.condition_type.CMP;
-    item.condition.op = apl.condition_op.GT;
-    item.condition.values = [apl.value(), apl.value()];
-    item.condition.values[0].value_type = apl.value_type.SIM_TIME;
-    item.condition.values[1].value_type = apl.value_type.CONST;
-    item.condition.values[1].vfloat = 90;
-    item.action.sequence = cds;
-    frost.items.push(item);
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.AND;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_STACKS;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.LT;
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 1.5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.FALSE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
+    cond.values[0].vint = common.cooldowns.FIRE_BLAST;
+    item.condition.conditions.push(cond);
+    item.action = apl.getAction("FireBlast");
+    items.push(item);
+
     item = apl.item();
-    item.action = apl.getAction("Frostbolt");
-    frost.items.push(item);
-    data.push(frost);
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.OR;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_STACKS;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
+    cond.values[0].vint = common.auras.FIRE_VULNERABILITY;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    item.action = apl.getAction("Scorch");
+    items.push(item);
+ 
+    cob_imf.items = _.cloneDeep(items);
+    cob_imf.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(cob_imf);
+
+    // cdimf
+    let cd_imf = apl.apl();
+    cd_imf.id = "fire-naxx-cd-imf";
+    cd_imf.name = "CDIMF";
+    items = [];    
+
+    item = apl.item();
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.OR;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.TRUE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+    cond.values[0].vint = common.auras.COMBUSTION;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.TRUE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+    cond.values[0].vint = common.auras.ESSENCE_OF_SAPPHIRON;
+    item.condition.conditions.push(cond);
+    item.action = apl.getAction("Fireball");
+    items.push(item);
+
+    item = apl.item();
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.AND;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_STACKS;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.LT;
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 1.5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.FALSE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
+    cond.values[0].vint = common.cooldowns.FIRE_BLAST;
+    item.condition.conditions.push(cond);
+    item.action = apl.getAction("FireBlast");
+    items.push(item);
+
+    item = apl.item();
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.OR;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_STACKS;
+    cond.values[0].vint = common.auras.IGNITE;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.CMP;
+    cond.op = apl.condition_op.EQ;    
+    cond.values = [apl.value(), apl.value()];
+    cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
+    cond.values[0].vint = common.auras.FIRE_VULNERABILITY;
+    cond.values[1].value_type = apl.value_type.CONST;
+    cond.values[1].vfloat = 5;
+    item.condition.conditions.push(cond);
+    item.action = apl.getAction("Scorch");
+    items.push(item);
+ 
+    cd_imf.items = _.cloneDeep(items);
+    cd_imf.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(cd_imf);
 
     let blank = apl.apl();
     blank.id = "preset-blank";
@@ -194,8 +292,29 @@ export default {
             ranged: { item_id: "15283:1959", enchant_id: null }
         }
     }, {
-        name: "Naxxramas",
+        name: "Phase 5 Exit",
         loadout: {
+            head: { item_id: 19375, enchant_id: 24164 },
+            neck: { item_id: 21608, enchant_id: null },
+            shoulder: { item_id: 19370, enchant_id: 24421 },
+            back: { item_id: 22731, enchant_id: null },
+            chest: { item_id: 21343, enchant_id: 20025 },
+            wrist: { item_id: 21186, enchant_id: 20008 },
+            hands: { item_id: 21585, enchant_id: 25078 },
+            waist: { item_id: 22730, enchant_id: null },
+            legs: { item_id: 21676, enchant_id: 24164 },
+            feet: { item_id: 21344, enchant_id: 13890 },
+            finger1: { item_id: 21709, enchant_id: null },
+            finger2: { item_id: 21836, enchant_id: null },
+            trinket1: { item_id: 19379, enchant_id: null },
+            trinket2: { item_id: 19339, enchant_id: null },
+            main_hand: { item_id: 21622, enchant_id: 22749 },
+            off_hand: { item_id: 21597, enchant_id: null },
+            ranged: { item_id: 21603, enchant_id: null }
+        }
+    }, {
+        name: "Naxxramas",
+        loadout: {            
             head: { item_id: 22498, enchant_id: 24164 },
             neck: { item_id: 21608, enchant_id: null },
             shoulder: { item_id: 22983, enchant_id: 29467 },

@@ -1,7 +1,7 @@
 //! state.rs — dynamic per-simulation state + mechanics (faithful to Python)
 
-use rand::prelude::*; // bring gen() into scope safely
-
+use rand::Rng;
+use rand_chacha::ChaCha8Rng;
 use crate::constants as C;
 use crate::constants::{Action, Buff, Spell, Constants};
 use crate::orchestration::{SpellResult, LogType, LogEntry};
@@ -388,7 +388,7 @@ impl State {
     }
 
     // ---------- mechanics: landing & effects (faithful to Python) ----------
-    pub fn land_spell<R: rand::Rng + ?Sized>(&mut self, k: &Constants, rng: &mut R) {
+    pub fn land_spell(&mut self, k: &Constants, rng: &mut ChaCha8Rng) {
         let Some(lane) = self.next_spell_lane() else { return };
         
         // Find the spell slot with the minimum timer in this lane
@@ -549,7 +549,7 @@ impl State {
 
     }
 
-    pub fn tick_ignite<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+    pub fn tick_ignite(&mut self, rng: &mut ChaCha8Rng) {
         // subtime
         let dt = self.boss.tick_timer;
         self.subtime(dt);
@@ -578,7 +578,7 @@ impl State {
 
     }
 
-    pub fn proc_nightfall<R: rand::Rng + ?Sized>(&mut self, _k: &Constants, rng: &mut R) {
+    pub fn proc_nightfall(&mut self, _k: &Constants, rng: &mut ChaCha8Rng) {
         // 1) find soonest Nightfall check
         let (idx, dt) = match self.boss.nightfall
             .iter()
@@ -606,7 +606,7 @@ impl State {
     /// One discrete simulation step (faithful to mechanics._advance):
     /// choose the nearest event among: cast finish, spell land, ignite tick, nightfall proc
     /// Priority on ties: cast < spell < tick < proc
-    pub fn step_one<R: rand::Rng + ?Sized>(&mut self, k: &Constants, rng: &mut R) {
+    pub fn step_one(&mut self, k: &Constants, rng: &mut ChaCha8Rng) {
         // Gather next event times
         let cast_t  = self.lanes.iter().map(|l| l.cast_timer).fold(f64::INFINITY, f64::min);
         // Find minimum spell_timer across all lanes and all queued spells

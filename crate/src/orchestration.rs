@@ -1,9 +1,6 @@
 //! orchestration.rs — high-level driver and initialization
-use rand::RngCore;
-use rand::SeedableRng;
-use rand::Rng; // bring trait into scope
-use rand::rngs::OsRng;
-use rand_pcg::Pcg64Mcg;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use rand_distr::{Normal, Distribution};
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
@@ -152,17 +149,16 @@ pub struct SimulationsResult {
 }
 
 // ---- Helpers ----
-fn sample_duration<R: Rng + ?Sized>(tim: &Timing, rng: &mut R) -> f64 {
+fn sample_duration(tim: &Timing, rng: &mut ChaCha8Rng) -> f64 {
     let normal = Normal::new(tim.duration_mean, tim.duration_sigma).unwrap();
     normal.sample(rng)
     //(tim.duration_mean + tim.duration_sigma * Rng::r#gen::<f64>(rng)).max(1.0)
 }
 
-fn first_action_offsets<R: Rng + ?Sized>(num_mages: usize, initial_delay: f64, rng: &mut R) -> Vec<f64> {
+fn first_action_offsets(num_mages: usize, initial_delay: f64, rng: &mut ChaCha8Rng) -> Vec<f64> {
     //let mut rng = Pcg64Mcg::seed_from_u64(9);
     let normal = Normal::new(0.0, initial_delay).unwrap();
     (0..num_mages).map(|_| normal.sample(rng).abs()).collect()
-    //(0..num_mages).map(|_| (initial_delay * Rng::r#gen::<f64>(rng)).abs()).collect()
 }
 
 fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
@@ -220,7 +216,7 @@ fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
     for hc in &mut stats.hit_chance { *hc = (*hc + 0.89).min(0.99); }
 }
 
-fn init_state<R: Rng + ?Sized>(p: &SimParams, rng: &mut R, idx: u64) -> State {
+fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     use crate::constants as C;
 
     let num = p.config.num_mages;
@@ -310,16 +306,19 @@ pub fn display_party_stats(st: &State, intellect: Option<&[f64]>) {
 }
 
 
-fn os_seed() -> u64 {
-    let mut bytes = [0u8; 8];
-    OsRng.fill_bytes(&mut bytes);
-    u64::from_le_bytes(bytes)
+fn create_rng(seed: u64) -> ChaCha8Rng {
+    ChaCha8Rng::seed_from_u64(seed)
 }
 
 pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, idx: u64) -> SimulationResult {
 
-    let mut rng = if idx == 0 { Pcg64Mcg::seed_from_u64(seed) } else { Pcg64Mcg::seed_from_u64(os_seed()) };
-    //let mut rng = if idx == 0 { Pcg64Mcg::seed_from_u64(seed) } else { Pcg64Mcg::seed_from_u64(0) };
+    let mut rng = if idx == 0 {
+        // Deterministic for reproducibility of the first run
+        create_rng(seed)
+    } else {
+        // Non-deterministic for parallel workers
+        ChaCha8Rng::from_entropy()
+    };
 
     // Build constants and bake stats
     let k = Constants::new(&params.consts_cfg);

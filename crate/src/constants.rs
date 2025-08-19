@@ -214,6 +214,7 @@ pub const NIGHTFALL_DURATION: f64 = 5.0;
 pub const UDC_MOD: f64 = 0.02;
 
 pub const MAX_QUEUED_SPELLS: usize = 4;
+pub const MAX_DEBUFF_HISTORY: usize = 10;
 
 /// How many opening Scorches are required by number of mages (index by num_mages)
 pub const SCORCHES_BY_MAGES: [i32; 13] = [9000, 6, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1];

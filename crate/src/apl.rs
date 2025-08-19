@@ -296,15 +296,15 @@ fn create_adaptive_mage_from_apl(apl_value: &Value, timing: &Timing) -> Box<dyn 
     let items = extract_items(apl_value);
     
     // Use timing values for reaction times
-    let initial_react = timing.initial_delay;
-    let continuing_react = timing.recast_delay;
+    let recast_delay = timing.recast_delay;
+    let reaction_time = timing.reaction_time;
     
     Box::new(AdaptiveMage::new(  // Changed from ScriptedMage to AdaptiveMage
         fixed_sequence,
         items,
         default_action,
-        initial_react,
-        continuing_react,
+        recast_delay,
+        reaction_time,
     ))
 }
 
@@ -320,7 +320,6 @@ pub fn create_team_decider_from_apls(apls: &[Option<serde_json::Value>], timing:
             Box::new(ScriptedMage::new(
                 vec![], // No opener sequence
                 Action::Fireball, // Default action
-                timing.initial_delay,
                 timing.recast_delay,
             ))
         };

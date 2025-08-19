@@ -34,6 +34,9 @@ pub struct Boss {
     pub spell_vulnerability: f64,
     pub dragonling_start: f64,
     pub nightfall: Vec<f64>,
+
+    pub scorch_refresh_history: Vec<f64>,  // Times when scorch was refreshed
+    pub ignite_refresh_history: Vec<f64>,  // Times when ignite was refreshed    
 }
 impl Default for Boss {
     fn default() -> Self {
@@ -48,6 +51,8 @@ impl Default for Boss {
             spell_vulnerability: 0.0,
             dragonling_start: -C::DRAGONLING_DURATION,
             nightfall: vec![],
+            scorch_refresh_history: Vec::new(),
+            ignite_refresh_history: Vec::new(),
         }
     }
 }
@@ -232,13 +237,13 @@ impl State {
     pub fn in_progress(&self) -> bool { self.global.running_time < self.global.duration }
 
     /// Called by the decider mapping of _apply_decisions → start_action
-    pub fn start_action(&mut self, lane: usize, action: Action, react_time: f64, k: &Constants) {
+    pub fn start_action(&mut self, lane: usize, action: Action, continuing_delay: f64, k: &Constants) {
         use crate::constants::{Action as A, Buff as B, Spell as S};
 
         let l = &mut self.lanes[lane];
 
         // schedule start
-        l.cast_timer = react_time;
+        l.cast_timer = continuing_delay;
         l.cast_type = action;
 
         // GCD spells add cast time and compute leftover gcd
@@ -259,12 +264,12 @@ impl State {
             let mqg = if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
             let cast_time = base_cast / mqg;
 
-            let total = react_time + cast_time;
+            let total = continuing_delay + cast_time;
             l.cast_timer = total;
 
             // leftover GCD stored to be pushed after cast ends
             let gcd_len = C::GLOBAL_COOLDOWN;
-            l.gcd_timer = (gcd_len + react_time - total).max(0.0);
+            l.gcd_timer = (gcd_len + continuing_delay - total).max(0.0);
         } else {
             l.gcd_timer = 0.0;
         }
@@ -466,6 +471,13 @@ impl State {
                 }
                 if self.boss.ignite_timer < C::DECISION_POINT { l.crit_too_late = true; }
                 if self.boss.tick_timer > C::IGNITE_TICK && self.boss.ignite_count > 0 { self.boss.tick_timer = C::IGNITE_TICK; }
+                if self.boss.ignite_timer > 0.0 {
+                    self.boss.ignite_refresh_history.push(self.global.running_time);
+                    // Optional: Keep history size manageable (e.g., last 10 refreshes)
+                    if self.boss.ignite_refresh_history.len() > C::MAX_DEBUFF_HISTORY {
+                        self.boss.ignite_refresh_history.remove(0);
+                    }
+                }                
                 self.boss.ignite_timer = C::IGNITE_TIME + 1e-6;
 
                 if self.boss.ignite_count == 0 {
@@ -512,6 +524,13 @@ impl State {
         }
         if k.is_scorch[spell_type] {
             if rng.r#gen::<f64>() < lane_hit {
+                if self.boss.scorch_timer > 0.0 {
+                    self.boss.scorch_refresh_history.push(self.global.running_time);
+                    if self.boss.scorch_refresh_history.len() > C::MAX_DEBUFF_HISTORY {
+                        self.boss.scorch_refresh_history.remove(0);
+                    }
+                }
+
                 self.boss.scorch_timer = C::SCORCH_TIME;
                 self.boss.scorch_count = (self.boss.scorch_count + 1).min(C::SCORCH_STACK);
             }
@@ -596,7 +615,7 @@ impl State {
             .fold(f64::INFINITY, f64::min);
         let tick_t  = self.boss.tick_timer;
         let proc_t  = self.boss.nightfall.iter().copied().fold(f64::INFINITY, f64::min);
-
+        
         // Short-circuit if nothing scheduled
         if !cast_t.is_finite() && !spell_t.is_finite() && !tick_t.is_finite() && !proc_t.is_finite() {
             return;

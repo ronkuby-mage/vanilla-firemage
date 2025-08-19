@@ -293,8 +293,9 @@ const defaultConfig = () => {
         target_resistance: 0,
         targets: 1,
         distance: 30,
-        reaction_time: 0.05,
-        player_delay: 0.2,
+        reaction_time: 0.5,
+        initial_delay: 1.0,
+        continuing_delay: 0.01,
         curse_of_elements: true,
         curse_of_shadows: true,
         judgement_of_wisdom: false,
@@ -1637,7 +1638,7 @@ const configExportKeys = () => {
     return [
         "rng_seed", "duration", "duration_variance", "avg_spell_dmg",
         "target_level", "target_resistance", "targets", "distance",
-        "reaction_time", "player_delay", "boss",
+        "reaction_time", "initial_delay", "continuing_delay", "boss",
         "curse_of_elements", "curse_of_shadows", "judgement_of_wisdom",
     ];
 };
@@ -2395,17 +2396,24 @@ onMounted(() => {
                             <div class="form-cols">
                                 <div class="form-item">
                                     <label>
-                                        <span class="middle">Continuing Delay</span>
-                                        <help>Minimized by spell queue</help>
+                                        <span class="middle">Start Delay</span>
+                                        <help>Seconds between the encounter start and average player casting start</help>
                                     </label>
-                                    <input type="text" v-model.number="activeRaid.config.reaction_time">
+                                    <input type="text" v-model.number="activeRaid.config.initial_delay">
                                 </div>
                                 <div class="form-item">
                                     <label>
-                                        <span class="middle">Initial Delay</span>
-                                        <help>Seconds between the encounter start and average player casting start</help>
+                                        <span class="middle">Cast Delay</span>
+                                        <help>Delay is minimized by spell queue</help>
                                     </label>
-                                    <input type="text" v-model.number="activeRaid.config.player_delay">
+                                    <input type="text" v-model.number="activeRaid.config.continuing_delay">
+                                </div>
+                                <div class="form-item">
+                                    <label>
+                                        <span class="middle">React Time</span>
+                                        <help>Response delay to debuff refreshes</help>
+                                    </label>
+                                    <input type="text" v-model.number="activeRaid.config.reaction_time">
                                 </div>
                             </div>
                             <div class="form-cols">
@@ -2599,7 +2607,7 @@ onMounted(() => {
                                 </checkbox>
                             </div>
                             <div class="form-item">
-                                <label>Auras</label>
+                                <label>External Buffs</label>
                                 <div class="icon-multiboxes">
                                     <label @click="cycleCount('atiesh_mage')" :class="{ active: activePlayer.buffs.atiesh_mage > 0 }" @mouseenter="showTip = true" @mouseleave="showTip = false">
                                         <wowicon icon="atiesh" />

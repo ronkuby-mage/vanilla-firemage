@@ -20,7 +20,8 @@ pub struct LegacyConfig {
     pub nightfall2: Option<Value>,
     pub nightfall3: Option<Value>,
     pub reaction_time: Option<f64>,
-    pub player_delay: Option<f64>,
+    pub initial_delay: Option<f64>,
+    pub continuing_delay: Option<f64>,
     pub boss: Option<String>,
     pub players: Vec<LegacyPlayer>,
     // Optional RNG seed if UI sends it; fallback to host seed
@@ -272,8 +273,9 @@ pub fn convert_legacy_to_simparams_and_players_data(cfg: LegacyConfig) -> (SimPa
     let timing = Timing {
         duration_mean: cfg.duration.unwrap_or(0.0),                   // keep your default or derive from UI
         duration_sigma: cfg.duration_variance.unwrap_or(0.0),
-        recast_delay: cfg.reaction_time.unwrap_or(0.0),
-        initial_delay: cfg.player_delay.unwrap_or(0.0),
+        reaction_time: cfg.reaction_time.unwrap_or(0.0),
+        initial_delay: cfg.initial_delay.unwrap_or(0.0),
+        recast_delay: cfg.continuing_delay.unwrap_or(0.0),
     };
     let sim_params = convert_legacy_to_simparams_internal(cfg, timing);
 

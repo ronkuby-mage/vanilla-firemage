@@ -1,5 +1,5 @@
 //! decisions.rs — rotation logic
-
+use crate::constants as C;
 use crate::constants::{Action, Buff};
 use crate::state::State;
 use crate::apl::{AplItem, AplConditionType, AplConditionOp, AplCondition, AplValue, AplValueType};
@@ -44,23 +44,20 @@ pub struct ScriptedMage {
     stage: usize,            // per-lane progress
     initial_sequence: Vec<Action>, // opener shared by all lanes
     default_action: Action,
-    initial_react: f64,
-    continuing_react: f64,
+    recast_delay: f64,
 }
 
 impl ScriptedMage {
     pub fn new(
         initial_sequence: Vec<Action>,
         default_action: Action,
-        initial_react: f64,
-        continuing_react: f64,
+        recast_delay: f64,
     ) -> Self {
         Self {
             stage: 0,
             initial_sequence,
             default_action,
-            initial_react,
-            continuing_react,
+            recast_delay,
         }
     }
 }
@@ -71,14 +68,13 @@ impl MageDecider for ScriptedMage {
         let mut s = self.stage;
         while s < self.initial_sequence.len() {
             let action = self.initial_sequence[s];
-            let react: f64 = if s == 0 { self.initial_react } else { self.continuing_react };
-            if !action_ready_for_action(st, lane, action) {
+            if action_ready_for_action(st, lane, action) {
                 self.stage = s + 1;
-                return Some((action, react));
+                return Some((action, self.recast_delay)); // no double dip on reaction time
             }
             s += 1;
         }
-        Some((self.default_action, self.continuing_react))
+        Some((self.default_action, self.recast_delay))
     }
 }
 
@@ -111,8 +107,8 @@ pub struct AdaptiveMage {
     initial_sequence: Vec<Action>, // opener shared by all lanes
     items: Vec<AplItem>,     // priority rotation rules
     default_action: Action,
-    initial_react: f64,
-    continuing_react: f64,
+    recast_delay: f64,
+    reaction_time: f64,
 }
 
 impl AdaptiveMage {
@@ -120,16 +116,16 @@ impl AdaptiveMage {
         initial_sequence: Vec<Action>,
         items: Vec<AplItem>,
         default_action: Action,
-        initial_react: f64,
-        continuing_react: f64,
+        recast_delay: f64,
+        reaction_time: f64,
     ) -> Self {
         Self {
             stage: 0,
             initial_sequence,
             items,
             default_action,
-            initial_react,
-            continuing_react,
+            recast_delay,
+            reaction_time,
         }
     }
 
@@ -198,6 +194,10 @@ impl AdaptiveMage {
                 self.infer_value_context_from_type(left_type)
             }
         };
+        // special case: Ignite or scorch debuff
+        if left_val.value_type == AplValueType::TargetAuraDuration || right_val.value_type == AplValueType::TargetAuraDuration {
+            return self.compare_debuff_duration_with_reaction_time(left_val, right_val, op, st, lane, context);
+        }
 
         let left = self.evaluate_value(left_val, st, lane, context);
         let right = self.evaluate_value(right_val, st, lane, context);
@@ -368,6 +368,93 @@ impl AdaptiveMage {
             AplConditionOp::None => false,
         }
     }
+
+    fn compare_debuff_duration_with_reaction_time(
+        &self, 
+        left_val: &AplValue, 
+        right_val: &AplValue, 
+        op: &AplConditionOp, 
+        st: &State, 
+        lane: usize,
+        context: ValueContext
+    ) -> bool {
+        // Identify which is the debuff duration and which is the threshold
+        let (duration_val, threshold_val, reversed) = if left_val.value_type == AplValueType::TargetAuraDuration {
+            (left_val, right_val, false)
+        } else {
+            (right_val, left_val, true)
+        };
+        
+        // Get current values
+        let current_duration = self.evaluate_value(duration_val, st, lane, context);
+        let threshold = self.evaluate_value(threshold_val, st, lane, context);
+        
+        // Determine which debuff we're checking
+        let (refresh_history, reaction_time) = match duration_val.vint {
+            22959 => (&st.boss.scorch_refresh_history, self.reaction_time), // FIRE_VULNERABILITY (scorch)
+            12654 => (&st.boss.ignite_refresh_history, self.reaction_time), // Ignite
+            _ => {
+                // Unknown debuff, fall back to simple comparison
+                return if reversed {
+                    self.compare_values(threshold, current_duration, op)
+                } else {
+                    self.compare_values(current_duration, threshold, op)
+                };
+            }
+        };
+        
+        // Check if condition would have been true within reaction time window
+        let current_time = st.global.running_time;
+        let reaction_window_start = current_time - reaction_time;
+        
+        // Find if there was a refresh within our reaction window
+        let refreshed_recently = refresh_history.iter()
+            .any(|&refresh_time| refresh_time > reaction_window_start && refresh_time <= current_time);
+        
+        if refreshed_recently {
+            // Calculate what the timer would have been at reaction_window_start
+            // This assumes we know the debuff duration constants
+            let debuff_duration = match duration_val.vint {
+                22959 => C::SCORCH_TIME,
+                12654 => C::IGNITE_TIME,
+                _ => 0.0,
+            };
+            
+            // Find the most recent refresh before reaction_window_start
+            let last_refresh_before = refresh_history.iter()
+                .filter(|&&t| t <= reaction_window_start)
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .copied();
+
+            if let Some(refresh_time) = last_refresh_before {
+                // Calculate what the timer would have been when we started reacting
+                let timer_at_reaction_start = debuff_duration - (reaction_window_start - refresh_time);
+                
+                if timer_at_reaction_start > 0.0 {
+                    // The debuff was active when we started reacting
+                    // Check if the condition would have been true then
+                    let condition_was_true = if reversed {
+                        self.compare_values(threshold, timer_at_reaction_start, op)
+                    } else {
+                        self.compare_values(timer_at_reaction_start, threshold, op)
+                    };
+                    
+                    if condition_was_true {
+                        // Condition was true when we started reacting, honor it
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // No recent refresh or condition wasn't true before, use current values
+        if reversed {
+            self.compare_values(threshold, current_duration, op)
+        } else {
+            self.compare_values(current_duration, threshold, op)
+        }
+    }    
+
 }
 
 pub struct AdaptiveTeamDecider {
@@ -394,12 +481,11 @@ impl MageDecider for AdaptiveMage {
         let mut s = self.stage;
         while s < self.initial_sequence.len() {
             let action = self.initial_sequence[s];
-            let react: f64 = if s == 0 { self.initial_react } else { self.continuing_react };
 
             // For buff actions, check if they're ready; for non-buff actions, always proceed
             if action_ready_for_action(st, lane, action) {
                 self.stage = s + 1;
-                return Some((action, react));
+                return Some((action, self.recast_delay));
             }
             s += 1;
         }
@@ -408,11 +494,11 @@ impl MageDecider for AdaptiveMage {
         if let Some(action) = self.conditional_action(&self.items, st, lane) {
             // Check if this action is ready (for buff actions)
             if action_ready_for_action(st, lane, action) {
-                return Some((action, self.continuing_react));
+                return Some((action, self.recast_delay));
             }
         }
         
         // Fall back to default action
-        Some((self.default_action, self.continuing_react))
+        Some((self.default_action, self.recast_delay))
     }
 }

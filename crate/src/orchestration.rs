@@ -33,7 +33,7 @@ pub struct Buffs {
     pub racial: Vec<Racial>,
 }
 #[derive(Debug, Clone, Copy)]
-pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial_delay: f64, pub recast_delay: f64 }
+pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial_delay: f64, pub recast_delay: f64, pub reaction_time: f64}
 
 #[derive(Debug, Clone)]
 pub struct Configuration {
@@ -160,7 +160,7 @@ fn sample_duration<R: Rng + ?Sized>(tim: &Timing, rng: &mut R) -> f64 {
 fn first_action_offsets<R: Rng + ?Sized>(num_mages: usize, initial_delay: f64, rng: &mut R) -> Vec<f64> {
     //let mut rng = Pcg64Mcg::seed_from_u64(9);
     let normal = Normal::new(0.0, initial_delay).unwrap();
-    (0..num_mages).map(|_| normal.sample(rng)).collect()
+    (0..num_mages).map(|_| normal.sample(rng).abs()).collect()
     //(0..num_mages).map(|_| (initial_delay * Rng::r#gen::<f64>(rng)).abs()).collect()
 }
 
@@ -238,6 +238,8 @@ fn init_state<R: Rng + ?Sized>(p: &SimParams, rng: &mut R, idx: u64) -> State {
 
     // Per-lane stats
     let offsets = first_action_offsets(num, p.timing.initial_delay, rng);
+    let overall_delay = offsets.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+
     for i in 0..num {
         let l = &mut st.lanes[i];
         l.cast_timer = offsets[i];
@@ -249,6 +251,7 @@ fn init_state<R: Rng + ?Sized>(p: &SimParams, rng: &mut R, idx: u64) -> State {
         if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
         // Others could come from config similarly
     }
+    st.subtime(overall_delay);
 
     for lane_idx in 0..st.lanes.len() {
         for (buff, indices) in &p.config.buff_assignments {
@@ -333,11 +336,12 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
 
     while st.in_progress() {
         
-        if let Some((lane, action, react_sigma)) = decider.next_action(&st) {
-            // sample reaction time
-            let normal = Normal::new(0.0, react_sigma).unwrap();
-            let react: f64 = normal.sample(&mut rng).abs();
-            st.start_action(lane, action, react, &k);
+        if let Some((lane, action, delay_sigma)) = decider.next_action(&st) {
+            // sample continuing delay
+            let normal = Normal::new(0.0, delay_sigma).unwrap();
+            let continuing_delay: f64 = normal.sample(&mut rng).abs();
+            
+            st.start_action(lane, action, continuing_delay, &k);
         }
 
         // step one event

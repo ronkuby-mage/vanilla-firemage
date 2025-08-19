@@ -4,7 +4,7 @@ use crate::orchestration::Timing;
 use crate::decisions::{TeamDecider, ScriptedMage, AdaptiveMage, MageDecider};
 use serde_json::Value;
 
-#[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AplConditionType {
     #[default]
     None,
@@ -16,7 +16,7 @@ pub enum AplConditionType {
     True,
 }
 
-#[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AplConditionOp {
     #[default]
     None,
@@ -28,7 +28,7 @@ pub enum AplConditionOp {
     Lte,
 }
 
-#[derive(Default, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
 pub enum AplValueType {
     #[default]
     None,
@@ -45,18 +45,18 @@ pub enum AplValueType {
     SimDuration,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct Apl {
     pub items: Vec<AplItem>,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct AplItem {
     pub condition: AplCondition,
     pub action: Action,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct AplCondition {
     pub condition_type: AplConditionType,
     pub op: AplConditionOp,
@@ -64,7 +64,7 @@ pub struct AplCondition {
     pub values: Vec<AplValue>,
 }
 
-#[derive(Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct AplValue {
     pub value_type: AplValueType,
     pub vstr: String,

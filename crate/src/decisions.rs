@@ -15,13 +15,20 @@ fn action_to_buff(action: Action) -> Option<Buff> {
     }
 }
 
-fn buff_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
-    if let Some(buff) = action_to_buff(action) {
-        st.lanes[lane].buff_cooldown[buff as usize] <= 0.0
-    } else {
-        false
+fn action_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
+    if action_to_buff(action).is_some() {
+        if let Some(buff) = action_to_buff(action) {
+            return st.lanes[lane].buff_cooldown[buff as usize] <= 0.0
+        } else {
+            return false
+        }
+    } else if action == Action::FireBlast {
+        return st.lanes[lane].fb_cooldown <= 0.0;
     }
+
+    true
 }
+
 
 pub trait Decider {
     fn next_action(&mut self, st: &State) -> Option<(usize, Action, f64)>;
@@ -65,7 +72,7 @@ impl MageDecider for ScriptedMage {
         while s < self.initial_sequence.len() {
             let action = self.initial_sequence[s];
             let react: f64 = if s == 0 { self.initial_react } else { self.continuing_react };
-            if !action_to_buff(action).is_some() || buff_ready_for_action(st, lane, action) {
+            if !action_ready_for_action(st, lane, action) {
                 self.stage = s + 1;
                 return Some((action, react));
             }
@@ -268,11 +275,11 @@ impl AdaptiveMage {
             
             AplValueType::PlayerCooldownExists => {
                 match value.vint {
-                    29977 => if st.lanes[lane].comb_cooldown <= 0.0 { 1.0 } else { 0.0 }, // COMBUSTION
-                    10199 => if st.lanes[lane].fb_cooldown <= 0.0 { 1.0 } else { 0.0 },   // FIRE_BLAST
+                    29977 => if st.lanes[lane].comb_cooldown > 0.0 { 1.0 } else { 0.0 }, // COMBUSTION
+                    10199 => if st.lanes[lane].fb_cooldown > 0.0 { 1.0 } else { 0.0 },   // FIRE_BLAST
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
-                            if st.lanes[lane].buff_cooldown[buff as usize] <= 0.0 { 1.0 } else { 0.0 }
+                            if st.lanes[lane].buff_cooldown[buff as usize] > 0.0 { 1.0 } else { 0.0 }
                         } else {
                             0.0
                         }
@@ -390,7 +397,7 @@ impl MageDecider for AdaptiveMage {
             let react: f64 = if s == 0 { self.initial_react } else { self.continuing_react };
 
             // For buff actions, check if they're ready; for non-buff actions, always proceed
-            if !action_to_buff(action).is_some() || buff_ready_for_action(st, lane, action) {
+            if action_ready_for_action(st, lane, action) {
                 self.stage = s + 1;
                 return Some((action, react));
             }
@@ -400,7 +407,7 @@ impl MageDecider for AdaptiveMage {
         // Opener is complete, now use the adaptive priority list
         if let Some(action) = self.conditional_action(&self.items, st, lane) {
             // Check if this action is ready (for buff actions)
-            if !action_to_buff(action).is_some() || buff_ready_for_action(st, lane, action) {
+            if action_ready_for_action(st, lane, action) {
                 return Some((action, self.continuing_react));
             }
         }

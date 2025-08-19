@@ -49,7 +49,7 @@ pub fn run_simulation(cfg_js: JsValue) -> JsValue {
     let mut decider: TeamDecider = create_team_decider_from_apls(&players_data, &params.timing);    
     //let make_decider = move || create_decider_from_players(players_data);    
 
-    let seed = 42u64; // or take from legacy.rng_seed.unwrap_or(42)
+    let seed = 46u64; // or take from legacy.rng_seed.unwrap_or(42)
     let result: SimulationResult = run_single(&params, &mut decider, seed, 0);
 
     // // Aggregate like the old UI expects

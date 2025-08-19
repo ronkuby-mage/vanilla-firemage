@@ -17,11 +17,11 @@ pub enum Spell { Scorch = 0, Pyroblast = 1, Fireball = 2, FireBlast = 3, Frostbo
 impl fmt::Display for Spell {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Spell::Fireball => write!(f, "fireball  "),
-            Spell::Scorch => write!(f, "scorch    "),
-            Spell::Pyroblast => write!(f, "pyroblast "),
-            Spell::FireBlast => write!(f, "fire blast"),
-            Spell::Frostbolt => write!(f, "Frostbolt "),
+            Spell::Fireball => write!(f, "Fireball"),
+            Spell::Scorch => write!(f, "Scorch"),
+            Spell::Pyroblast => write!(f, "Pyroblast"),
+            Spell::FireBlast => write!(f, "Fire Blast"),
+            Spell::Frostbolt => write!(f, "Frostbolt"),
         }
     }
 }
@@ -51,14 +51,14 @@ impl fmt::Display for Action {
             Action::Fireball => write!(f, "Fireball"),
             Action::Scorch => write!(f, "Scorch"),
             Action::Pyroblast => write!(f, "Pyroblast"),
-            Action::FireBlast => write!(f, "FireBlast"),
+            Action::FireBlast => write!(f, "Fire Blast"),
             Action::Frostbolt => write!(f, "Frostbolt"),
             Action::Gcd => write!(f, "GCD"),
             Action::Combustion => write!(f, "Combustion"),
             Action::Sapp => write!(f, "Sapp"),
-            Action::Toep => write!(f, "Toep"),
-            Action::Zhc => write!(f, "Zhc"),
-            Action::Mqg => write!(f, "Mqg"),
+            Action::Toep => write!(f, "ToEP"),
+            Action::Zhc => write!(f, "ZHC"),
+            Action::Mqg => write!(f, "MQG"),
             Action::PowerInfusion => write!(f, "Power Infusion")
         }
     }
@@ -212,6 +212,8 @@ pub const NIGHTFALL_VULN: f64 = 0.15;      // +15% spell vulnerability
 pub const NIGHTFALL_DURATION: f64 = 5.0;
 
 pub const UDC_MOD: f64 = 0.02;
+
+pub const MAX_QUEUED_SPELLS: usize = 4;
 
 /// How many opening Scorches are required by number of mages (index by num_mages)
 pub const SCORCHES_BY_MAGES: [i32; 13] = [9000, 6, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1];

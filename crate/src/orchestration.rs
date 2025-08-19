@@ -356,7 +356,7 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
         players.push(PlayerResult {
             name: format!("mage {}", i),
             dmg: dmg as u64,
-            dps: dmg  /dur,
+            dps: total_dmg /dur,
             ignite_dmg: total_dmg as u64,
             ignite_dps: total_dmg /dur,
         });

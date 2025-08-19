@@ -56,9 +56,9 @@ impl Default for Boss {
 #[derive(Debug, Clone)]
 pub struct MageLane {
     pub cast_type: Action,
-    pub spell_type: Spell,
+    pub spell_type: [Spell; C::MAX_QUEUED_SPELLS], // Changed to fixed-size array
     pub cast_timer: f64,
-    pub spell_timer: f64,
+    pub spell_timer: [f64; C::MAX_QUEUED_SPELLS],  // Changed to fixed-size array
     pub gcd_timer: f64,
     pub fb_cooldown: f64,
     pub comb_stack: u8,
@@ -80,9 +80,9 @@ impl Default for MageLane {
     fn default() -> Self {
         Self {
             cast_type: Action::Gcd,
-            spell_type: Spell::Scorch,
+            spell_type: [Spell::Scorch; C::MAX_QUEUED_SPELLS], // Initialize array with default
             cast_timer: f64::INFINITY,
-            spell_timer: f64::INFINITY,
+            spell_timer: [f64::INFINITY; C::MAX_QUEUED_SPELLS], // Initialize array with INFINITY
             gcd_timer: 0.0,
             fb_cooldown: 0.0,
             comb_stack: 0,
@@ -192,7 +192,9 @@ impl State {
         self.boss.spell_vulnerability -= dt;
         for l in &mut self.lanes {
             l.cast_timer -= dt;
-            l.spell_timer -= dt;
+            for timer in &mut l.spell_timer {
+                *timer -= dt;
+            }
             l.gcd_timer -= dt;
             l.comb_cooldown -= dt;
             l.fb_cooldown -= dt;
@@ -213,10 +215,15 @@ impl State {
     }
 
     pub fn next_spell_lane(&self) -> Option<usize> {
+        // Find the lane with the minimum spell_timer value across all queued spells
         self.lanes
             .iter()
             .enumerate()
-            .min_by(|a, b| a.1.spell_timer.total_cmp(&b.1.spell_timer))
+            .min_by(|a, b| {
+                let min_a = a.1.spell_timer.iter().copied().fold(f64::INFINITY, f64::min);
+                let min_b = b.1.spell_timer.iter().copied().fold(f64::INFINITY, f64::min);
+                min_a.total_cmp(&min_b)
+            })
             .map(|(i, _)| i)
     }
 
@@ -282,7 +289,7 @@ impl State {
         let action = l.cast_type;
         //l.cast_timer = f64::INFINITY;
 
-        // 1) transfer to spell stage if it's a non-instant (Python: cast_type < CAST_GCD)
+        // 1) transfer to spell stage if it's a non-instant 
         let is_instant = matches!(action, A::Combustion | A::Sapp | A::Toep | A::Zhc | A::Mqg | A::PowerInfusion | A::Gcd);
         if !is_instant {
             // map Action → Spell index
@@ -294,8 +301,12 @@ impl State {
                 A::Frostbolt => S::Frostbolt,
                 _ => S::Scorch, // safe default; you can refine
             };
-            l.spell_type  = spell;
-            l.spell_timer = k.spell_travel[spell as usize];
+            // Find the first available slot in the spell queue (timer == f64::INFINITY)
+            if let Some(slot) = l.spell_timer.iter().position(|&t| t == f64::INFINITY) {
+                l.spell_type[slot] = spell;
+                l.spell_timer[slot] = k.spell_travel[spell as usize];
+            }
+            // If no slots available, the spell is dropped (queue full)
 
             // Special: fire blast starts its own cooldown on *cast end* in Python
             if matches!(action, A::FireBlast) {
@@ -374,7 +385,16 @@ impl State {
     // ---------- mechanics: landing & effects (faithful to Python) ----------
     pub fn land_spell<R: rand::Rng + ?Sized>(&mut self, k: &Constants, rng: &mut R) {
         let Some(lane) = self.next_spell_lane() else { return };
-        let dt = self.lanes[lane].spell_timer;
+        
+        // Find the spell slot with the minimum timer in this lane
+        let l = &self.lanes[lane];
+        let (slot, &min_timer) = l.spell_timer
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.total_cmp(b.1))
+            .unwrap(); // We know there's at least one element
+        
+        let dt = min_timer;
         self.subtime(dt);
 
         if !self.in_progress() { return }
@@ -382,10 +402,12 @@ impl State {
 
         // grab lane fields you need for early checks
         let lane_hit = self.lanes[lane].hit_chance;
-        let spell_string = self.lanes[lane].spell_type;
-        let spell_type = self.lanes[lane].spell_type as usize;
+        let spell_string = self.lanes[lane].spell_type[slot];
+        let spell_type = self.lanes[lane].spell_type[slot] as usize;
         let l = &mut self.lanes[lane];
-        l.spell_timer = f64::INFINITY;
+        
+        // Clear the processed spell slot
+        l.spell_timer[slot] = f64::INFINITY;
 
         // use the stashed values instead of reading through `l` where possible
         if rng.r#gen::<f64>() >= lane_hit {
@@ -568,7 +590,10 @@ impl State {
     pub fn step_one<R: rand::Rng + ?Sized>(&mut self, k: &Constants, rng: &mut R) {
         // Gather next event times
         let cast_t  = self.lanes.iter().map(|l| l.cast_timer).fold(f64::INFINITY, f64::min);
-        let spell_t = self.lanes.iter().map(|l| l.spell_timer).fold(f64::INFINITY, f64::min);
+        // Find minimum spell_timer across all lanes and all queued spells
+        let spell_t = self.lanes.iter()
+            .flat_map(|l| l.spell_timer.iter().copied())
+            .fold(f64::INFINITY, f64::min);
         let tick_t  = self.boss.tick_timer;
         let proc_t  = self.boss.nightfall.iter().copied().fold(f64::INFINITY, f64::min);
 

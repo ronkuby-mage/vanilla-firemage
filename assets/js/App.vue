@@ -3014,6 +3014,47 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
+                            <!-- NEW STATS SECTION -->
+                            <div class="stats" v-if="result.iterations">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="title">SP per Crit %</div>
+                                        <div class="value">
+                                            <animate-number :end="result.stats?.critRate || 0" :decimals="1" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">SP per Hit %</div>
+                                        <div class="value">
+                                            <animate-number :end="result.stats?.critMulti || 0" :decimals="1" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">DPS per SP</div>
+                                        <div class="value">
+                                            <animate-number :end="result.stats?.hitRate || 0" :decimals="2" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">SP per Crit % @90</div>
+                                        <div class="value">
+                                            <animate-number :end="result.stats?.blockRate || 0" :decimals="1" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">SP per Hit % @90</div>
+                                        <div class="value">
+                                            <animate-number :end="result.stats?.avgHit || 0" :decimals="1" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">DPS per SP @90</div>
+                                        <div class="value">
+                                            <animate-number :end="result.stats?.maxHit || 0" :decimals="2" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>                            
                             <div class="info">
                                 <table>
                                     <tbody>

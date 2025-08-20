@@ -922,8 +922,51 @@ body {
                     }
                 }
 
-                > .info {
+                > .stats {
                     grid-column: 4;
+                    grid-row: 1;
+                    position: relative;
+                    width: auto; /* Match the width of other progress elements */
+
+                    .stats-grid {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        grid-template-rows: repeat(2, 1fr);
+                        gap: 15px;
+                        padding: 20px;
+                        background: var(--color-bg1);
+                        border: 1px solid var(--color-stroke-light);
+                        border-radius: 4px;
+                        height: 120px; /* Adjust as needed */
+                    }
+
+                    .stat-item {
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        
+                        .title {
+                            color: var(--color-primary-light);
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                            font-size: 12px;
+                            margin-bottom: 4px;
+                            line-height: 1.1;
+                        }
+
+                        .value {
+                            font-weight: 700;
+                            font-size: 25px;
+                            color: #fff;
+                            line-height: 1;
+                        }
+                    }
+                }
+
+                > .info {
+                    grid-column: 5;
                     grid-row: 1;
                     justify-self: end;
                     font-size: 14px;
@@ -947,18 +990,19 @@ body {
                 > .histogram-section {
                     grid-column: 2 / -1;  /* From column 2 to the end */
                     grid-row: 2;
-                    margin-top: 30px;
-                    padding-top: 30px;
+                    margin-top: 10px;
+                    padding-top: 10px;
                     border-top: 1px solid var(--color-stroke-light);
                     width: 100%; /* Ensure it takes full width of its grid area */
                 }
 
                 /* Also add this rule in case you're using histogram-wrapper elsewhere */
+                > .histogram-section
                 > .histogram-wrapper {
                     grid-column: 2 / -1;
                     grid-row: 2;
-                    margin-top: 30px;
-                    padding-top: 30px;
+                    margin-top: 10px;
+                    padding-top: 10px;
                     border-top: 1px solid var(--color-stroke-light);
                     width: 100%;
                 }

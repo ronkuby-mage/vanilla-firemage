@@ -52,6 +52,7 @@ export default {
         weapon_oil_brilliant_mana: "inv_potion_100",
         arcanite_dragonling: "spell_fire_fireball",
         nightfall: "spell_holy_elunesgrace",
+        power_infusion: "spell_holy_powerinfusion",
     },
 
     base_url: "https://wow.zamimg.com/images/wow/icons/large/",

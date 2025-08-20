@@ -296,6 +296,7 @@ const defaultConfig = () => {
         reaction_time: 0.5,
         initial_delay: 1.0,
         continuing_delay: 0.01,
+        do_stat_weights: true,
         curse_of_elements: true,
         curse_of_shadows: true,
         judgement_of_wisdom: false,
@@ -367,6 +368,7 @@ const defaultPlayer = () => {
         buffs: defaultBuffs(),
         has_pi: false,
         is_target: true,
+        is_vary: true,
         // new: one nested buffs object, booleans/strings only
         talents: common.parseWowheadTalents("23000502-5052122123033151-003"),
         items: [],
@@ -467,32 +469,6 @@ const deleteRaid = (id) => {
 const activeRaid = computed(() => {
     return raids.value.find(raid => raid.id == settings.raid_id);
 });
-
-
-// Fake boolean model that drives checkbox
-const atieshMageModel = computed({
-    get() {
-        console.log('  made it here1');
-        const p = activePlayer || {};
-        const b = p.buffs || {};
-        const val = Number(b.atiesh_mage != null ? b.atiesh_mage : 0);
-        console.log('  count:', val);
-        return val > 0;
-    },
-    set() {
-        console.log('  made it here2');
-        const max = 4;
-        const p = activePlayer || {};
-        console.log('  made it here2', activePlayer);
-        const b = p.buffs || {};
-        const val = Number(b.atiesh_mage != null ? b.atiesh_mage : 0);
-        const next = (val + 1) > max ? 0 : (val + 1);
-        this.activePlayer.buffs.atiesh_mage = next;
-        console.log('new count', next);
-
-    }
-});
-
 
 /*
  * Settings
@@ -716,7 +692,6 @@ const simConfig = () => {
 
     config.players = [];
     for (let p of activeRaid.value.players) {
-        console.log("pushing player", p)
         let player = defaultPlayer();
         for (var key in player)
             player[key] = _.cloneDeep(p[key]);
@@ -724,7 +699,6 @@ const simConfig = () => {
         player.items = simLoadoutItems(p.loadout);
         player.buffs = simBuffs(p);
         player.apl = simApl(p.apl);
-        console.log("new player", player)
         config.players.push(player);
     }
 
@@ -1162,7 +1136,7 @@ const playerConfigExclusive = (e, key, others) => {
         for (let other of others) {
             if (other == key)
                 continue;
-            activePlayer.value[other] = false;
+            activePlayer.value.buffs[other] = false;
         }
     }
 };
@@ -1171,7 +1145,14 @@ const cycleCount = (field) => {
     const max = 4;
     const total = activePlayer.value.buffs.atiesh_mage + activePlayer.value.buffs.atiesh_warlock + Number(activePlayer.value.buffs.moonkin_aura);
     const cur  = Number(activePlayer.value.buffs[field] ?? 0);
-    if (field != "moonkin_aura") {
+    //console.log("hello?", field);
+    if (field === "power_infusion") {
+        if (activePlayer.value.has_pi)
+            activePlayer.value.has_pi = false;
+        else
+            activePlayer.value.has_pi = true;
+   }
+   else if (field != "moonkin_aura") {
         if (total < max) {
             activePlayer.value.buffs[field] = cur + 1;
         }
@@ -2149,6 +2130,16 @@ const playerDps = (player) => {
 
     return player.dps;
 };
+const statWeight = (wtype) => {
+    if (wtype == "sp") {
+        return (result.value.dps_sp - result.value.dps_select)/15.0/result.value.iterations;
+    } else if (wtype == "crit") {
+        return 10.0 * (result.value.dps_crit - result.value.dps_select) / (result.value.dps_sp - result.value.dps_select);
+    } else if (wtype == "hit") {
+        return 10.0 * (result.value.dps_hit - result.value.dps_select) / (result.value.dps_sp - result.value.dps_select);
+    }
+    return 0.0;
+}
 const filterHistogram = ref("total");
 const histogramData = computed(() => {
     return result.value.histogram;
@@ -2588,14 +2579,14 @@ onMounted(() => {
                                 </div>
                             </div>
                             <div class="form-item">
-                                <checkbox label="Sync buffs" tip="Sync buffs between all players">
+                                <checkbox label="Sync Buffs" tip="Sync buffs between all players">
                                     <input type="checkbox" v-model="activeRaid._sync_buffs" @change="onSyncBuffs">
                                 </checkbox>
-                                <checkbox label="Power Infusion" tip="PI is available to player">
-                                    <input type="checkbox" v-model="activePlayer.has_pi">
-                                </checkbox>
-                                <checkbox label="Target" tip="Player is considered in DPS calculation">
+                                <checkbox label="Stat Weight Target" tip="Player output is counted in stat weights">
                                     <input type="checkbox" v-model="activePlayer.is_target">
+                                </checkbox>
+                                <checkbox label="Stat Weight Differential" tip="Player stats are varied in stat weights">
+                                    <input type="checkbox" v-model="activePlayer.is_vary">
                                 </checkbox>
                             </div>
                             <div class="form-item">
@@ -2618,6 +2609,10 @@ onMounted(() => {
                                     <label @click="cycleCount('moonkin_aura')" :class="{ active: activePlayer.buffs.moonkin_aura }" @mouseenter="showTip = true" @mouseleave="showTip = false">
                                         <wowicon icon="moonkin_aura" />
                                         <tooltip v-show="showTip" class="tip">Moonkin aura</tooltip>
+                                    </label>
+                                    <label @click="cycleCount('power_infusion')" :class="{ active: activePlayer.has_pi }" @mouseenter="showTip = true" @mouseleave="showTip = false">
+                                        <wowicon icon="power_infusion" />
+                                        <tooltip v-show="showTip" class="tip">Power Infusion</tooltip>
                                     </label>
                                 </div>
                             </div>
@@ -3020,37 +3015,39 @@ onMounted(() => {
                                     <div class="stat-item">
                                         <div class="title">SP per Crit %</div>
                                         <div class="value">
-                                            <animate-number :end="result.stats?.critRate || 0" :decimals="1" />
+                                            <animate-number :end="statWeight('crit') || 0" :decimals="1" />
                                         </div>
                                     </div>
                                     <div class="stat-item">
                                         <div class="title">SP per Hit %</div>
                                         <div class="value">
-                                            <animate-number :end="result.stats?.critMulti || 0" :decimals="1" />
+                                            <animate-number :end="statWeight('hit') || 0" :decimals="1" />
                                         </div>
+                                        <tooltip position="topright">Invalid if player hit is 98% or 99%</tooltip>
                                     </div>
                                     <div class="stat-item">
                                         <div class="title">DPS per SP</div>
                                         <div class="value">
-                                            <animate-number :end="result.stats?.hitRate || 0" :decimals="2" />
+                                            <animate-number :end="statWeight('sp') || 0" :decimals="2" />
                                         </div>
                                     </div>
                                     <div class="stat-item">
                                         <div class="title">SP per Crit % @90</div>
                                         <div class="value">
-                                            <animate-number :end="result.stats?.blockRate || 0" :decimals="1" />
+                                            <animate-number :end="statWeight('crit90') || 0" :decimals="1" />
                                         </div>
                                     </div>
                                     <div class="stat-item">
                                         <div class="title">SP per Hit % @90</div>
                                         <div class="value">
-                                            <animate-number :end="result.stats?.avgHit || 0" :decimals="1" />
+                                            <animate-number :end="statWeight('hit90') || 0" :decimals="1" />
                                         </div>
+                                        <tooltip position="topright">Invalid if player hit is 98% or 99%</tooltip>
                                     </div>
                                     <div class="stat-item">
                                         <div class="title">DPS per SP @90</div>
                                         <div class="value">
-                                            <animate-number :end="result.stats?.maxHit || 0" :decimals="2" />
+                                            <animate-number :end="statWeight('sp90') || 0" :decimals="2" />
                                         </div>
                                     </div>
                                 </div>

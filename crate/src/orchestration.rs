@@ -36,6 +36,8 @@ pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial
 pub struct Configuration {
     pub num_mages: usize,
     pub target: Vec<usize>,
+    pub vary: Vec<usize>,
+    pub do_stat_weights: bool,
     pub buff_assignments: HashMap<Buff, Vec<usize>>,
     pub udc: Vec<usize>,
     pub nightfall: Vec<f64>,
@@ -55,6 +57,8 @@ impl Configuration {
         Self {
             num_mages: 0,
             target: vec![],
+            vary: vec![],
+            do_stat_weights: true,
             buff_assignments,
             udc: vec![],
             nightfall: vec![],
@@ -145,7 +149,10 @@ pub struct SimulationsResult {
     pub ignite_dps: f64,
     pub players: Vec<PlayerResult>,
     pub histogram: HashMap<u32, u32>,
-    pub ignite_histogram: HashMap<u32, u32>,
+    pub dps_sp: f64,
+    pub dps_crit: f64,
+    pub dps_hit: f64,
+    pub dps_select: f64,
 }
 
 // ---- Helpers ----

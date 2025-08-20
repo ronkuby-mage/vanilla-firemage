@@ -2149,16 +2149,8 @@ const playerDps = (player) => {
 
     return player.dps;
 };
-const filterHistogram = ref(null);
-const filterHistogramOptions = computed(() => {
-    let options = [{value: "total", title: "Total dps"}];
-    if (result.value.ignite_dps)
-        options.push({value: "ignite", title: "Ignite"});
-    return options;
-});
+const filterHistogram = ref("total");
 const histogramData = computed(() => {
-    if (filterHistogram.value == "ignite")
-        return result.value.ignite_histogram;
     return result.value.histogram;
 });
 
@@ -2972,15 +2964,12 @@ onMounted(() => {
                         </button>
                         <template v-if="result.iterations">
                             <button class="tab" :class="{active: activeResultTab == 'histogram'}" @click="activeResultTab = 'histogram'">
-                                Histogram
+                                Comparison
                             </button>
                         </template>
                         <template v-else>
                             <button class="tab" :class="{active: activeResultTab == 'log'}" @click="activeResultTab = 'log'">
                                 Combat log
-                            </button>
-                            <button class="tab" :class="{active: activeResultTab == 'graph'}" @click="activeResultTab = 'graph'">
-                                Graph
                             </button>
                         </template>
                     </div>
@@ -3004,9 +2993,7 @@ onMounted(() => {
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-item" v-if="result.ignite_dps">
-                                    <checkbox label="Normalize ignite"><input type="checkbox" v-model="settings.normalize_ignite"></checkbox>
-                                </div>
+
                             </div>
                             <div class="total progress-wrapper">
                                 <progress-circle :value="1" :animate="true" />
@@ -3038,27 +3025,17 @@ onMounted(() => {
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="histogram-section" v-if="result.iterations">
+                                <histogram :data="histogramData" />
+                            </div>
                         </div>
                     </div>
 
                     <div class="histogram" v-if="activeResultTab == 'histogram'">
-                        <div class="search">
-                            <div class="search-histogram">
-                                <select-simple v-model="filterHistogram" :options="filterHistogramOptions" :fill-missing="true" />
-                            </div>
+                        <div style="padding: 20px; text-align: center; color: #999;">
+                            Comparison features coming soon...
                         </div>
-                        <histogram :data="histogramData" />
                     </div>
-
-                    <div class="graph" v-if="activeResultTab == 'graph'">
-                        <div class="search">
-                            <div class="search-player">
-                                <select-simple v-model="filterPlayer" :options="filterPlayerOptions" empty-option="All players" />
-                            </div>
-                        </div>
-                        <combat-chart :result="result" :player="filterPlayer" />
-                    </div>
-
                     <template v-if="result.iterations">
 
                     </template>

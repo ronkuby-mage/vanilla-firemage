@@ -1,5 +1,5 @@
 //! orchestration.rs — high-level driver and initialization
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Normal, Distribution};
 use std::collections::HashMap;

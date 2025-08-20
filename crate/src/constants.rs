@@ -155,7 +155,7 @@ impl Action {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
-pub enum Buff { Sapp = 0, Toep = 1, Zhc = 2, Mqg = 3, PowerInfusion = 4 }
+pub enum Buff { Sapp = 0, Toep = 1, Zhc = 2, Mqg = 3 }
 
 pub const LOG: bool = true;
 
@@ -180,10 +180,13 @@ pub const FIRE_BLAST_COOLDOWN: f64 = 7.0;  // assumes 2 talent points
 pub const POWER_INFUSION: f64 = 0.20;
 pub const MQG_HASTE: f64 = 0.33;           // Mind Quickening Gem cast speed bonus
 
-pub const NUM_BUFFS: usize = 5;            // Sapp, TOEP, ZHC, MQG, PI
+pub const NUM_BUFFS: usize = 4;            // Sapp, TOEP, ZHC, MQG
 pub const NUM_DAMAGE_BUFFS: usize = 3;     // Sapp, TOEP, ZHC
-pub const BUFF_DURATION: [f64; NUM_BUFFS] = [20.0, 15.0, 20.0, 20.0, 15.0];
-pub const BUFF_COOLDOWN: [f64; NUM_BUFFS] = [120.0, 90.0, 120.0, 300.0, 180.0];
+pub const BUFF_DURATION: [f64; NUM_BUFFS] = [20.0, 15.0, 20.0, 20.0];
+pub const BUFF_COOLDOWN: [f64; NUM_BUFFS] = [120.0, 90.0, 120.0, 300.0];
+pub const PI_DURATION: f64 = 15.0;
+pub const PI_COOLDOWN: f64 = 180.0;
+
 /// Flat damage added per spell hit while active (Sapp, TOEP, ZHC)
 pub const BUFF_DAMAGE: [f64; NUM_DAMAGE_BUFFS] = [130.0, 175.0, 204.0];
 /// Damage per-tick added per single cast while the buff is active (ZHC drains -17 per cast)
@@ -217,6 +220,7 @@ pub const UDC_MOD: f64 = 0.02;
 
 pub const MAX_QUEUED_SPELLS: usize = 4;
 pub const MAX_DEBUFF_HISTORY: usize = 10;
+pub const MAX_PI: usize = 4;
 
 /// How many opening Scorches are required by number of mages (index by num_mages)
 pub const SCORCHES_BY_MAGES: [i32; 13] = [9000, 6, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1];
@@ -229,7 +233,6 @@ pub const fn buff_cast_action(buff: Buff) -> Action {
         Buff::Toep => Action::Toep,
         Buff::Zhc => Action::Zhc,
         Buff::Mqg => Action::Mqg,
-        Buff::PowerInfusion => Action::PowerInfusion,
     }
 }
 

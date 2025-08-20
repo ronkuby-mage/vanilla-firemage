@@ -366,7 +366,7 @@ const defaultPlayer = () => {
         stats: baseStats("Undead"),
         loadout: baseLoadout(),
         buffs: defaultBuffs(),
-        has_pi: false,
+        pi_count: 0,
         is_target: true,
         is_vary: true,
         // new: one nested buffs object, booleans/strings only
@@ -1147,10 +1147,11 @@ const cycleCount = (field) => {
     const cur  = Number(activePlayer.value.buffs[field] ?? 0);
     //console.log("hello?", field);
     if (field === "power_infusion") {
-        if (activePlayer.value.has_pi)
-            activePlayer.value.has_pi = false;
+        const max_pi = 4;
+        if (activePlayer.value.pi_count < max_pi)
+            activePlayer.value.pi_count += 1;
         else
-            activePlayer.value.has_pi = true;
+            activePlayer.value.pi_count = 0;
    }
    else if (field != "moonkin_aura") {
         if (total < max) {
@@ -2616,8 +2617,11 @@ onMounted(() => {
                                         <wowicon icon="moonkin_aura" />
                                         <tooltip v-show="showTip" class="tip">Moonkin aura</tooltip>
                                     </label>
-                                    <label @click="cycleCount('power_infusion')" :class="{ active: activePlayer.has_pi }" @mouseenter="showTip = true" @mouseleave="showTip = false">
+                                    <label @click="cycleCount('power_infusion')" :class="{ active: activePlayer.pi_count }" @mouseenter="showTip = true" @mouseleave="showTip = false">
                                         <wowicon icon="power_infusion" />
+                                        <span v-if="Number(activePlayer.pi_count) > 1" class="counter-badge">
+                                            {{ activePlayer.pi_count }}
+                                        </span>
                                         <tooltip v-show="showTip" class="tip">Power Infusion</tooltip>
                                     </label>
                                 </div>

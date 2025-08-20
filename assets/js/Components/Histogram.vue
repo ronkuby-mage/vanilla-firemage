@@ -26,7 +26,8 @@ const chartData = ref(null);
 const chartOptions = ref(null);
 const makeChart = () => {
     let map = toRaw(props.data);
-    let keys = map.keys().toArray().sort();
+    let keys = map.keys().toArray().sort((a, b) => a - b);
+
     let binMax = _.last(keys);
     let binSize = 50000;
     for (let i=1; i<keys.length; i++) {

@@ -69,7 +69,7 @@ pub struct LegacyPlayer {
 
     pub stats: LegacyStats,
     pub buffs: LegacyBuffs,
-    pub has_pi: Option<bool>,
+    pub pi_count: Option<usize>,
     pub is_target: Option<bool>,
     pub is_vary: Option<bool>,
     pub items: LegacyItems,
@@ -230,15 +230,16 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     let mut target = vec![];
     let mut vary = vec![];
     let mut udc = vec![];
+    let mut pi_count = vec![0; nm];
     for (i, p) in cfg.players.iter().enumerate() {
         if p.items.sapp.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Sapp, i); }
         if p.items.toep.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Toep, i); }
         if p.items.zhc.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Zhc, i); }
         if p.items.mqg.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Mqg, i); }
         if p.items.udc.unwrap_or(false) { udc.push(i); }
+        pi_count[i] = p.pi_count.unwrap_or(0);
         if p.is_target.unwrap_or(false) { target.push(i); }
         if p.is_vary.unwrap_or(false) { vary.push(i); }
-        if p.has_pi.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::PowerInfusion, i); }
     }
     // log::debug!("Buffs assignments:");
     // for (buff, lanes) in buff_assignments.clone().into_iter() {
@@ -256,6 +257,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         vary: vary,
         do_stat_weights: dsw,
         buff_assignments: buff_assignments,
+        pi_count: pi_count,
         udc: udc,
         nightfall: nightfall,
         dragonling: dragonling,

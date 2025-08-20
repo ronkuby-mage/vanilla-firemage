@@ -39,6 +39,7 @@ pub struct Configuration {
     pub vary: Vec<usize>,
     pub do_stat_weights: bool,
     pub buff_assignments: HashMap<Buff, Vec<usize>>,
+    pub pi_count: Vec<usize>,
     pub udc: Vec<usize>,
     pub nightfall: Vec<f64>,
     pub dragonling: f64,
@@ -53,14 +54,13 @@ impl Configuration {
         buff_assignments.insert(Buff::Toep, vec![]);
         buff_assignments.insert(Buff::Zhc, vec![]);
         buff_assignments.insert(Buff::Mqg, vec![]);
-        buff_assignments.insert(Buff::PowerInfusion, vec![]);
-
         Self {
             num_mages: 0,
             target: vec![],
             vary: vec![],
             do_stat_weights: true,
             buff_assignments,
+            pi_count: vec![],
             udc: vec![],
             nightfall: vec![],
             dragonling: f64::INFINITY,
@@ -240,6 +240,7 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     st.meta.dmf_slots = p.buffs.world.get(&WorldBuff::SaygesDarkFortuneOfDamage).unwrap().clone().to_vec();
     st.meta.sr_slots = p.buffs.world.get(&WorldBuff::SoulRevival).unwrap().clone().to_vec();
     st.meta.ts_slots = p.buffs.world.get(&WorldBuff::TracesOfSilithyst).unwrap().clone().to_vec();
+    st.meta.pi_count = p.config.pi_count.clone();
     st.meta.vulnerability = if p.buffs.boss == BossType::Thaddius { 1.0 + C::THADDIUS_BUFF } else { 1.0 };
     st.meta.nightfall_period = p.config.nightfall.clone();
     st.meta.coe = if p.config.coe { C::COE_MULTIPLIER } else { 1.0 };
@@ -259,10 +260,9 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         l.spell_power = p.stats.spell_power[i];
         // Buff availability: PI, trinkets that are assigned get 0 cooldown to open
         for cooldown in l.buff_cooldown.iter_mut() { *cooldown = f64::INFINITY; }
-        if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
+        //if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
         // Others could come from config similarly
     }
-    st.subtime(overall_delay);
 
     for lane_idx in 0..st.lanes.len() {
         for (buff, indices) in &p.config.buff_assignments {
@@ -272,7 +272,12 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
                 }
             }
         }
+        let pis: usize = st.meta.pi_count[lane_idx];
+        for slot in 0..pis.min(C::MAX_PI) {
+            st.lanes[lane_idx].pi_cooldown[slot] = 0.0;
+        }
     }
+    st.subtime(overall_delay); // set delay after all time initializations
 
     st
 }
@@ -286,7 +291,6 @@ pub fn display_party_stats(st: &State, intellect: Option<&[f64]>) {
         (Buff::Toep, "toep"),
         (Buff::Zhc,  "zhc"),
         (Buff::Mqg,  "mqg"),
-        (Buff::PowerInfusion, "pi"),
     ];
 
     log::debug!("\n=== Player Stats ===");

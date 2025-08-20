@@ -59,7 +59,6 @@ pub struct LegacyBuffs {
     pub dmf_dmg: Option<bool>,
     pub soul_revival: Option<bool>,
     pub traces_of_silithyst: Option<bool>,
-   
 }
 
 #[derive(Debug, Deserialize)]
@@ -135,6 +134,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         intellect:   vec![0.0; nm],
     };
     let mut racials: Vec<Racial> = vec![Racial::Other; nm];
+    let mut name: Vec<String> = vec![String::new(); nm];
 
     for (i, p) in cfg.players.iter().enumerate() {
         stats.spell_power[i] = p.stats.sp;
@@ -144,6 +144,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
 
         // Map race string → Racial enum
         racials[i] = p.race.as_deref().map(racial_from_str).unwrap_or(Racial::Other);
+        name[i] = p.name.clone().unwrap_or_default();
     }
 
     // --- Per-mage buff assignments (index lists) ---
@@ -260,6 +261,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         dragonling: dragonling,
         boss: boss,
         coe: coe,
+        name: name,
     };
     // Constants config: carry defaults unless you expose knobs in UI
     let consts_cfg = ConstantsConfig::default();

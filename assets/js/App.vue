@@ -2137,6 +2137,12 @@ const statWeight = (wtype) => {
         return 10.0 * (result.value.dps_crit - result.value.dps_select) / (result.value.dps_sp - result.value.dps_select);
     } else if (wtype == "hit") {
         return 10.0 * (result.value.dps_hit - result.value.dps_select) / (result.value.dps_sp - result.value.dps_select);
+    } else if (wtype == "sp90") {
+        return (result.value.dps90_sp - result.value.dps90_select)/15.0/result.value.iterations;
+    } else if (wtype == "crit90") {
+        return 10.0 * (result.value.dps90_crit - result.value.dps90_select) / (result.value.dps90_sp - result.value.dps90_select);
+    } else if (wtype == "hit90") {
+        return 10.0 * (result.value.dps90_hit - result.value.dps90_select) / (result.value.dps90_sp - result.value.dps90_select);
     }
     return 0.0;
 }

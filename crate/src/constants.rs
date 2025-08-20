@@ -200,6 +200,8 @@ pub const RES_THRESH_UL: [f64; 4] = [0.8303, 0.9415, 0.9905, 1.0];
 pub const RESISTANCE_MODIFIER: f64 = 0.940_997;
 
 pub const DMF_BUFF: f64 = 0.1;
+pub const SR_BUFF: f64 = 0.1;
+pub const TS_BUFF: f64 = 0.05;
 pub const THADDIUS_BUFF: f64 = 1.9;
 
 pub const DECISION_POINT: f64 = 2.0;       // seconds remaining threshold used in rotation logic

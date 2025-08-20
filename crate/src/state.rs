@@ -107,16 +107,19 @@ impl Default for MageLane {
     }
 }
 
-// stat values
+// static values
 #[derive(Debug, Clone, Default)]
 pub struct PlayerMeta {
     pub dmf_slots: Vec<usize>,
+    pub sr_slots: Vec<usize>,
+    pub ts_slots: Vec<usize>,
     pub cleaner_slots: Vec<usize>,
     pub pi_slots: Vec<usize>,
     pub target_slots: Vec<usize>,
     pub nightfall_period: Vec<f64>,
     pub vulnerability: f64,
     pub coe: f64,
+    pub name: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -147,7 +150,7 @@ impl State {
         self.log.push(LogEntry {
             log_type: log_type,
             text: format!("s[{}]", spell),
-            unit_name: format!("mage {}", unit_id),
+            unit_name: self.meta.name[unit_id as usize].clone(),
             t: self.global.running_time,
             dps: if self.global.running_time > 0.0 { self.lanes[unit_id as usize].damage / self.global.running_time } else { 0.0 },
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
@@ -162,7 +165,7 @@ impl State {
         self.log.push(LogEntry {
             log_type: LogType::IgniteTick,
             text: format!("s[ignite] -> t[{}]", value),
-            unit_name: format!("mages"),
+            unit_name: format!(""),
             t: self.global.running_time,
             dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
@@ -177,7 +180,7 @@ impl State {
         self.log.push(LogEntry {
             log_type: LogType::SpellImpact,
             text: format!("s[{}] -> t[{}]", spell, value),
-            unit_name: format!("mage {}", unit_id),
+            unit_name: self.meta.name[unit_id as usize].clone(),
             t: self.global.running_time,
             dps: if self.global.running_time > 0.0 { self.lanes[unit_id as usize].damage / self.global.running_time } else { 0.0 },
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
@@ -429,6 +432,8 @@ impl State {
         let is_cleaner = self.meta.cleaner_slots.iter().any(|&i| i == lane);
         let is_target = targeted_all || self.meta.target_slots.iter().any(|&i| i == lane);
         let is_dmf = self.meta.dmf_slots.iter().any(|&i| i == lane);
+        let is_sr = self.meta.sr_slots.iter().any(|&i| i == lane);
+        let is_ts = self.meta.ts_slots.iter().any(|&i| i == lane);
 
         let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
         let mut buff_damage = if dragonling_active { C::DRAGONLING_BUFF } else { 0.0 };
@@ -448,6 +453,8 @@ impl State {
         if l.buff_timer[Buff::PowerInfusion as usize] > 0.0 { spell_damage *= 1.0 + C::POWER_INFUSION; }
         if self.boss.spell_vulnerability > 0.0 { spell_damage *= 1.0 + C::NIGHTFALL_VULN; }
         if is_dmf { spell_damage *= 1.0 + C::DMF_BUFF; }
+        if is_sr { spell_damage *= 1.0 + C::SR_BUFF; }
+        if is_ts { spell_damage *= 1.0 + C::TS_BUFF; }
         spell_damage *= self.meta.vulnerability; // Thaddius
         if is_cleaner { spell_damage *= 1.0 + C::UDC_MOD }
 
@@ -484,8 +491,10 @@ impl State {
                     self.boss.tick_timer = C::IGNITE_TICK;
                     let pi_mult = if l.buff_timer[Buff::PowerInfusion as usize] > 0.0 { 1.0 + C::POWER_INFUSION } else { 1.0 };
                     let dmf_mult = if is_dmf {1.0 + C::DMF_BUFF} else { 1.0 };
+                    let sr_mult = if is_sr {1.0 + C::SR_BUFF} else { 1.0 };
+                    let ts_mult = if is_ts {1.0 + C::TS_BUFF} else { 1.0 };
                     // snap shot value
-                    self.boss.ignite_multiplier = if is_cleaner { 1.0 + C::UDC_MOD } else { 1.0 } * pi_mult * dmf_mult * self.meta.vulnerability;
+                    self.boss.ignite_multiplier = if is_cleaner { 1.0 + C::UDC_MOD } else { 1.0 } * pi_mult * dmf_mult * sr_mult * ts_mult * self.meta.vulnerability;
                 }
                 if self.boss.ignite_count < C::IGNITE_STACK {
                     let crit_mult = 1.0 + k.icrit_damage; // 1.5

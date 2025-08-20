@@ -59,11 +59,19 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
         results.dps_sp = 0.0;
         results.dps_crit = 0.0;
         results.dps_hit = 0.0;
+        results.dps90_select = 0.0;
+        results.dps90_sp = 0.0;
+        results.dps90_crit = 0.0;
+        results.dps90_hit = 0.0;
         for idx  in params.config.target.iter() {
             results.dps_select += (iterations as f64) * results.players[*idx as usize].dps / (target_players as f64);
             results.dps_sp += (iterations as f64) * results_sp.players[*idx as usize].dps / (target_players as f64);
             results.dps_crit += (iterations as f64) * results_crit.players[*idx as usize].dps / (target_players as f64);
             results.dps_hit += (iterations as f64) * results_hit.players[*idx as usize].dps / (target_players as f64);
+            results.dps90_select += (iterations as f64) * results.players[*idx as usize].ninetieth / (target_players as f64);
+            results.dps90_sp += (iterations as f64) * results_sp.players[*idx as usize].ninetieth / (target_players as f64);
+            results.dps90_crit += (iterations as f64) * results_crit.players[*idx as usize].ninetieth / (target_players as f64);
+            results.dps90_hit += (iterations as f64) * results_hit.players[*idx as usize].ninetieth / (target_players as f64);
         }
     }
 
@@ -74,7 +82,7 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
 pub fn run_simulation(cfg_js: JsValue) -> JsValue {
     console_error_panic_hook::set_once();
     console_log::init_with_level(Level::Debug).expect("error initializing log");
-    log::debug!("Engine made it this far.");
+    //log::debug!("Engine made it this far.");
 
     let legacy: LegacyConfig = from_value(cfg_js).expect("bad config from JS");
 
@@ -97,7 +105,7 @@ pub fn run_simulation(cfg_js: JsValue) -> JsValue {
     //     "player_dps_per_target": result.player_dps / targets,
     //     // add min/max/hist if the UI expects them
     // });
-    log::debug!("Engine made it THIS!!!!! far. {:?}", result);
+    //log::debug!("Engine made it THIS!!!!! far. {:?}", result);
 
     to_value(&result).unwrap()
 }

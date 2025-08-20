@@ -71,6 +71,10 @@ class SimContainer {
                             sum.dps_sp = sum.dps_sp + data.result.dps_sp;
                             sum.dps_crit = sum.dps_crit + data.result.dps_crit;
                             sum.dps_hit = sum.dps_hit + data.result.dps_hit;
+                            sum.dps90_select = sum.dps90_select + data.result.dps90_select;
+                            sum.dps90_sp = sum.dps90_sp + data.result.dps90_sp;
+                            sum.dps90_crit = sum.dps90_crit + data.result.dps90_crit;
+                            sum.dps90_hit = sum.dps90_hit + data.result.dps90_hit;
                         }
 
                         sum.iterations+= data.result.iterations;

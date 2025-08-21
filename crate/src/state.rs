@@ -68,7 +68,6 @@ pub struct MageLane {
     pub fb_cooldown: f64,
     pub comb_stack: u8,
     pub comb_left: u8,
-    pub comb_avail: u8,
     pub comb_cooldown: f64,
     pub buff_timer: [f64; C::NUM_BUFFS],
     pub buff_cooldown: [f64; C::NUM_BUFFS],
@@ -94,8 +93,7 @@ impl Default for MageLane {
             fb_cooldown: 0.0,
             comb_stack: 0,
             comb_left: 0,
-            comb_avail: 1,
-            comb_cooldown: f64::INFINITY,
+            comb_cooldown: 0.0,
             buff_timer: [0.0; C::NUM_BUFFS],
             buff_cooldown: [f64::INFINITY; C::NUM_BUFFS],
             buff_ticks: [0; C::NUM_DAMAGE_BUFFS],
@@ -633,7 +631,8 @@ impl State {
             .fold(f64::INFINITY, f64::min);
         let tick_t  = self.boss.tick_timer;
         let proc_t  = self.boss.nightfall.iter().copied().fold(f64::INFINITY, f64::min);
-        
+
+
         // Short-circuit if nothing scheduled
         if !cast_t.is_finite() && !spell_t.is_finite() && !tick_t.is_finite() && !proc_t.is_finite() {
             return;

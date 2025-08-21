@@ -296,7 +296,6 @@ const defaultConfig = () => {
         reaction_time: 0.5,
         initial_delay: 1.0,
         continuing_delay: 0.01,
-        do_stat_weights: true,
         curse_of_elements: true,
         curse_of_shadows: true,
         judgement_of_wisdom: false,
@@ -305,7 +304,7 @@ const defaultConfig = () => {
         nightfall2: "",
         nightfall3: "",
         boss: "None",
-
+        in_comparison: true,
     };
 };
 
@@ -677,8 +676,10 @@ const simApl = (apl) => {
     }
     return apl;
 };
-const simConfig = () => {
-    let config = _.cloneDeep(activeRaid.value.config);
+const simConfig = (raid = null) => {
+    if (!raid) raid = activeRaid.value;
+    
+    let config = _.cloneDeep(raid.config);
     for (let key in config) {
         if (key.substr(0, 1) == "_")
             delete config[key];
@@ -705,7 +706,15 @@ const simConfig = () => {
     return config;
 };
 const runSingle = () => {
-    const sc = new SimContainer(settings.threads, 1, simConfig(), r => {
+    // Single iteration only runs the active raid
+    const config = simConfig();
+    config.raid_id = activeRaid.value.id;
+    config.raid_name = activeRaid.value.name;
+    config.is_active_raid = true;
+    
+    console.log('[App] Running single iteration with config:', config);
+
+    const sc = new SimContainer(settings.threads, 1, config, r => {
         isRunning.value = false;
         result.value = r;
     }, e => {
@@ -722,7 +731,25 @@ const simProgress = reactive({
 });
 const runMultiple = () => {
     let iterations = settings.iterations;
-    const sc = new SimContainer(settings.threads, settings.iterations, simConfig(), r => {
+    let configs = [];
+    
+    // Multiple iterations run all raids with in_comparison checked
+    for (let raid of raids.value) {
+        if (raid.config.in_comparison) {
+            let config = simConfig(raid);
+            config.raid_id = raid.id;
+            config.raid_name = raid.name;
+            config.is_active_raid = (raid.id === activeRaid.value.id);
+            configs.push(config);
+        }
+    }
+    
+    if (configs.length === 0) {
+        alert("No raids selected for comparison");
+        return;
+    }
+    
+    const sc = new SimContainer(settings.threads, settings.iterations, configs, r => {
         isRunning.value = false;
         result.value = r;
     }, e => {
@@ -738,7 +765,6 @@ const runMultiple = () => {
     simProgress.progress = 0;
     sc.start();
 };
-
 /*
  * Combat log
  */
@@ -2147,10 +2173,11 @@ const statWeight = (wtype) => {
     }
     return 0.0;
 }
-const filterHistogram = ref("total");
 const histogramData = computed(() => {
     return result.value.histogram;
 });
+const comparisonShowAll = ref(true);
+const selectedComparison = ref(null);
 
 /*
  * Watchers
@@ -2458,6 +2485,12 @@ onMounted(() => {
                                 </div>
                             </div>
                         </div>
+                        <div class="form-item">
+                            <checkbox label="Include in Comparison">
+                                <input type="checkbox" v-model="activeRaid.config.in_comparison">
+                            </checkbox>
+                        </div>
+
                     </div>
 
                     <div class="form-box config-player" v-if="activePlayer">
@@ -2967,8 +3000,8 @@ onMounted(() => {
                         <button class="tab" :class="{active: activeResultTab == 'overview'}" @click="activeResultTab = 'overview'">
                             Overview
                         </button>
-                        <template v-if="result.iterations">
-                            <button class="tab" :class="{active: activeResultTab == 'histogram'}" @click="activeResultTab = 'histogram'">
+                        <template v-if="result.iterations > 1">
+                            <button class="tab" :class="{active: activeResultTab == 'comparison'}" @click="activeResultTab = 'comparison'">
                                 Comparison
                             </button>
                         </template>
@@ -3007,7 +3040,7 @@ onMounted(() => {
                                     <div class="value">
                                         <animate-number :end="result.dps" />
                                     </div>
-                                    <div class="notice" v-if="result.iterations">{{ result.min_dps.toFixed() }} - {{ result.max_dps.toFixed() }}</div>
+                                    <div class="notice" v-if="result.iterations > 1">{{ result.min_dps.toFixed() }} - {{ result.max_dps.toFixed() }}</div>
                                 </div>
                             </div>
                             <div class="ignite progress-wrapper" v-if="result.ignite_dps">
@@ -3020,7 +3053,7 @@ onMounted(() => {
                                 </div>
                             </div>
                             <!-- NEW STATS SECTION -->
-                            <div class="stats" v-if="result.iterations">
+                            <div class="stats" v-if="result.iterations > 1">
                                 <div class="stats-grid">
                                     <div class="stat-item">
                                         <div class="title">SP per Crit %</div>
@@ -3066,28 +3099,22 @@ onMounted(() => {
                                 <table>
                                     <tbody>
                                         <tr><td>Execution time:</td><td>{{ result.time.toFixed(2) }}s</td></tr>
-                                        <template v-if="result.iterations">
+                                        <template v-if="result.iterations > 1">
                                             <tr><td>Iterations:</td><td>{{ result.iterations }}</td></tr>
                                             <tr><td>Time / iteration:</td><td>{{ (result.time / result.iterations * 1000).toFixed(2) }}ms</td></tr>
                                         </template>
                                     </tbody>
                                 </table>
                             </div>
-                            <div class="histogram-section" v-if="result.iterations">
+                            <div class="histogram-section" v-if="result.iterations > 1">
                                 <histogram :data="histogramData" />
                             </div>
                         </div>
                     </div>
-
-                    <div class="histogram" v-if="activeResultTab == 'histogram'">
-                        <div style="padding: 20px; text-align: center; color: #999;">
-                            Comparison features coming soon...
-                        </div>
+                    <div class="comparison" v-if="activeResultTab == 'comparison'">
+                        <comparison v-if="activeResultTab == 'comparison'" :result="result" :active-raid="activeRaid"/>
                     </div>
-                    <template v-if="result.iterations">
-
-                    </template>
-                    <template v-else>
+                    <template v-if="result.iterations < 2">
                         <div class="combat-log" v-if="activeResultTab == 'log'">
                             <div class="search">
                                 <div class="search-player">

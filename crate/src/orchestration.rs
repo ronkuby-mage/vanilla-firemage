@@ -130,6 +130,7 @@ pub struct PlayerResult {
 // Result from one run
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct SimulationResult {
+    pub iterations: i32,    
     pub t: f64,
     pub dmg: u64,
     pub dps: f64,
@@ -384,6 +385,7 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
     }
 
     let result = SimulationResult {
+        iterations: 1,
         t: dur,
         dmg: (st.totals.total_damage + st.totals.ignite_damage) as u64,
         dps: (st.totals.total_damage + st.totals.ignite_damage) /dur,

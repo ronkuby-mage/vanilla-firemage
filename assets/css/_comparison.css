@@ -1,0 +1,80 @@
+.comparison {
+    height: 100%;
+    overflow-y: auto;
+    
+    .comparison-content {
+        padding: 20px;
+    }
+    
+    .comparison-controls {
+        margin-bottom: 20px;
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            
+            input[type="checkbox"] {
+                cursor: pointer;
+            }
+        }
+    }
+    
+    .chart-wrapper {
+        height: 400px;
+        margin-bottom: 30px;
+        background: #1a1a1a;
+        border-radius: 8px;
+        padding: 20px;
+        position: relative;
+        
+        .dps-chart {
+            width: 100% !important;
+            height: 100% !important;
+        }
+    }
+    
+    .comparison-table {
+        background: #1a1a1a;
+        border-radius: 8px;
+        overflow: hidden;
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            
+            th, td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            th {
+                background: rgba(255, 255, 255, 0.05);
+                font-weight: 600;
+            }
+            
+            .active-raid {
+                background: rgba(255, 255, 255, 0.05);
+                font-weight: bold;
+            }
+        }
+    }
+    
+    .no-data {
+        padding: 40px;
+        text-align: center;
+        color: #999;
+        
+        p {
+            margin: 10px 0;
+        }
+    }
+}

@@ -25,6 +25,8 @@ fn action_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
         return st.lanes[lane].fb_cooldown <= 0.0;
     } else if action == Action::PowerInfusion {
         return st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() <= 0.0;
+    } else if action == Action::Combustion {
+        return st.lanes[lane].comb_cooldown <= 0.0;
     }
 
     true
@@ -75,6 +77,7 @@ impl MageDecider for ScriptedMage {
             }
             s += 1;
         }
+        self.stage = self.initial_sequence.len();        
         Some((self.default_action, self.recast_delay))
     }
 }
@@ -495,6 +498,7 @@ impl MageDecider for AdaptiveMage {
             }
             s += 1;
         }
+        self.stage = self.initial_sequence.len();
         
         // Opener is complete, now use the adaptive priority list
         if let Some(action) = self.conditional_action(&self.items, st, lane) {

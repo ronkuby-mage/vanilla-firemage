@@ -1,5 +1,5 @@
 //! orchestration.rs — high-level driver and initialization
-use rand::{Rng, SeedableRng};
+use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Normal, Distribution};
 use std::collections::HashMap;
@@ -36,12 +36,16 @@ pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial
 pub struct Configuration {
     pub num_mages: usize,
     pub target: Vec<usize>,
+    pub vary: Vec<usize>,
+    pub do_stat_weights: bool,
     pub buff_assignments: HashMap<Buff, Vec<usize>>,
+    pub pi_count: Vec<usize>,
     pub udc: Vec<usize>,
     pub nightfall: Vec<f64>,
     pub dragonling: f64,
     pub boss: BossType,
     pub coe: bool,
+    pub name: Vec<String>,
 }
 impl Configuration {
     pub fn new() -> Self {
@@ -50,17 +54,19 @@ impl Configuration {
         buff_assignments.insert(Buff::Toep, vec![]);
         buff_assignments.insert(Buff::Zhc, vec![]);
         buff_assignments.insert(Buff::Mqg, vec![]);
-        buff_assignments.insert(Buff::PowerInfusion, vec![]);
-
         Self {
             num_mages: 0,
             target: vec![],
+            vary: vec![],
+            do_stat_weights: true,
             buff_assignments,
+            pi_count: vec![],
             udc: vec![],
             nightfall: vec![],
             dragonling: f64::INFINITY,
             boss: BossType::None,
             coe: true,
+            name: Vec::new(),
         }
     }
 }
@@ -117,8 +123,7 @@ pub struct LogEntry {
 pub struct PlayerResult {
     pub dmg: u64,
     pub dps: f64,
-    pub ignite_dmg: u64,
-    pub ignite_dps: f64,
+    pub ninetieth: f64,
     pub name: String,
 }
 
@@ -141,11 +146,17 @@ pub struct SimulationsResult {
     pub dps: f64,
     pub min_dps: f64,
     pub max_dps: f64,
-    pub ninetieth: f64,
     pub ignite_dps: f64,
     pub players: Vec<PlayerResult>,
     pub histogram: HashMap<u32, u32>,
-    pub ignite_histogram: HashMap<u32, u32>,
+    pub dps_sp: f64,
+    pub dps_crit: f64,
+    pub dps_hit: f64,
+    pub dps_select: f64,
+    pub dps90_sp: f64,
+    pub dps90_crit: f64,
+    pub dps90_hit: f64,
+    pub dps90_select: f64,
 }
 
 // ---- Helpers ----
@@ -227,9 +238,13 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     st.meta.cleaner_slots = p.config.udc.clone();
     st.meta.target_slots = p.config.target.clone();
     st.meta.dmf_slots = p.buffs.world.get(&WorldBuff::SaygesDarkFortuneOfDamage).unwrap().clone().to_vec();
+    st.meta.sr_slots = p.buffs.world.get(&WorldBuff::SoulRevival).unwrap().clone().to_vec();
+    st.meta.ts_slots = p.buffs.world.get(&WorldBuff::TracesOfSilithyst).unwrap().clone().to_vec();
+    st.meta.pi_count = p.config.pi_count.clone();
     st.meta.vulnerability = if p.buffs.boss == BossType::Thaddius { 1.0 + C::THADDIUS_BUFF } else { 1.0 };
     st.meta.nightfall_period = p.config.nightfall.clone();
     st.meta.coe = if p.config.coe { C::COE_MULTIPLIER } else { 1.0 };
+    st.meta.name = p.config.name.clone();
     st.boss.nightfall = p.config.nightfall.clone(); // start the swing timers
     st.boss.dragonling_start = p.config.dragonling;
 
@@ -245,10 +260,9 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         l.spell_power = p.stats.spell_power[i];
         // Buff availability: PI, trinkets that are assigned get 0 cooldown to open
         for cooldown in l.buff_cooldown.iter_mut() { *cooldown = f64::INFINITY; }
-        if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
+        //if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
         // Others could come from config similarly
     }
-    st.subtime(overall_delay);
 
     for lane_idx in 0..st.lanes.len() {
         for (buff, indices) in &p.config.buff_assignments {
@@ -258,7 +272,12 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
                 }
             }
         }
+        let pis: usize = st.meta.pi_count[lane_idx];
+        for slot in 0..pis.min(C::MAX_PI) {
+            st.lanes[lane_idx].pi_cooldown[slot] = 0.0;
+        }
     }
+    st.subtime(overall_delay); // set delay after all time initializations
 
     st
 }
@@ -272,7 +291,6 @@ pub fn display_party_stats(st: &State, intellect: Option<&[f64]>) {
         (Buff::Toep, "toep"),
         (Buff::Zhc,  "zhc"),
         (Buff::Mqg,  "mqg"),
-        (Buff::PowerInfusion, "pi"),
     ];
 
     log::debug!("\n=== Player Stats ===");
@@ -358,11 +376,10 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
         let total_dmg = dmg + st.totals.ignite_damage / (st.lanes.len() as f64);
         //log::debug!("{:3} player {} amount {:4.}", idx, i, (st.lanes.len() as f64) * dmg/dur);
         players.push(PlayerResult {
-            name: format!("mage {}", i),
+            name: params.config.name[i].clone(),
             dmg: dmg as u64,
             dps: total_dmg /dur,
-            ignite_dmg: total_dmg as u64,
-            ignite_dps: total_dmg /dur,
+            ninetieth: 0.0,
         });
     }
 
@@ -391,8 +408,9 @@ where
     //     })
     //     .collect()
     let mut result: SimulationsResult = SimulationsResult { iterations, ..Default::default() };
-   let mut dps_values = Vec::with_capacity(iterations as usize);
     let bin_size: f64 = 50.0;
+
+    let mut dps_values = vec![Vec::with_capacity(iterations as usize); params.config.num_mages];
 
     for idx in 1..=iterations {
         // Fresh decider for each iteration
@@ -401,7 +419,9 @@ where
         // If you want a per-iter seed, keep passing i as u64 like before
         let sim_result = run_single(params, &mut decider, seed, idx as u64);
 
-        dps_values.push(sim_result.dps);        
+        for jdx in 0..params.config.num_mages {
+            dps_values[jdx].push(sim_result.players[jdx].dps);
+        }
 
         result.dps += sim_result.dps;
         result.ignite_dps += sim_result.ignite_dps as f64;
@@ -430,15 +450,17 @@ where
     }
 
     // Calculate 90th percentile
-    dps_values.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    let percentile_90_index = ((iterations as f64) * 0.9).ceil() as usize - 1;
-    result.ninetieth = dps_values[percentile_90_index.min(iterations as usize - 1)];
+    for jdx in 0..params.config.num_mages {
+        dps_values[jdx].sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let percentile_90_index = ((iterations as f64) * 0.9).ceil() as usize - 1;
+        result.players[jdx].ninetieth = dps_values[jdx][percentile_90_index.min(iterations as usize - 1)];
+    }
 
     result.dps /= iterations as f64;
     result.ignite_dps /= iterations as f64;
     for jdx in 0..result.players.len() {
-        result.players[jdx].ignite_dps = 0.0;
         result.players[jdx].dps /= iterations as f64;
+        //result.players[jdx].name = params.config.name[jdx].clone();
     }
 
     result  

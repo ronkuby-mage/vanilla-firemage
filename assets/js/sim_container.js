@@ -60,16 +60,21 @@ class SimContainer {
                                 sum.histogram.set(key, val + (acc ? acc : 0));
                             }
                         }
-                        if (data.result.ignite_histogram) {
-                            for (const [key, val] of data.result.ignite_histogram) {
-                                let acc = sum.ignite_histogram.get(key);
-                                sum.ignite_histogram.set(key, val + (acc ? acc : 0));
-                            }
-                        }
 
                         for (let j=0; j<sum.players.length; j++) {
                             sum.players[j].dps = (sum.players[j].dps * sum.iterations + data.result.players[j].dps * data.result.iterations) / (sum.iterations + data.result.iterations);
                             sum.players[j].ignite_dps = (sum.players[j].ignite_dps * sum.iterations + data.result.players[j].ignite_dps * data.result.iterations) / (sum.iterations + data.result.iterations);
+                        }
+
+                        if (data.result.dps_sp) {
+                            sum.dps_select = sum.dps_select + data.result.dps_select;
+                            sum.dps_sp = sum.dps_sp + data.result.dps_sp;
+                            sum.dps_crit = sum.dps_crit + data.result.dps_crit;
+                            sum.dps_hit = sum.dps_hit + data.result.dps_hit;
+                            sum.dps90_select = sum.dps90_select + data.result.dps90_select;
+                            sum.dps90_sp = sum.dps90_sp + data.result.dps90_sp;
+                            sum.dps90_crit = sum.dps90_crit + data.result.dps90_crit;
+                            sum.dps90_hit = sum.dps90_hit + data.result.dps90_hit;
                         }
 
                         sum.iterations+= data.result.iterations;

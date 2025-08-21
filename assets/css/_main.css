@@ -799,8 +799,15 @@ body {
         }
 
         > .overview {
-            > .dps-overview {;
+            > .dps-overview {
                 @mixin clearfix;
+
+                /* Update grid to have explicit rows */
+                display: grid;
+                grid-template-columns: 250px auto auto 1fr;
+                grid-template-rows: auto auto; /* Two rows: main content, then histogram */
+                gap: 40px;
+                align-items: start;
 
                 .progress-wrapper {
                     position: relative;
@@ -834,33 +841,10 @@ body {
                     }
                 }
 
-                > .total,
-                > .ignite {
-                    float: left;
-                    position: relative;
-                    margin-left: 40px;
-
-                    .progress-circle svg {
-                        width: 200px;
-                    }
-
-                    .center {
-                        .value {
-                            font-weight: 700;
-                            font-size: 34px;
-                        }
-                    }
-                }
-
-                > .ignite {
-                    .progress-circle svg .percent {
-                        color: #d00;
-                    }
-                }
-
                 > .players {
-                    width: 250px;
-                    float: left;
+                    width: 100%;
+                    grid-column: 1;
+                    grid-row: 1 / -1;  /* Span all rows - this keeps players on left for full height */
 
                     .player {
                         @mixin clearfix;
@@ -904,9 +888,87 @@ body {
                     }
                 }
 
+                > .total {
+                    grid-column: 2;
+                    grid-row: 1;
+                    position: relative;
+
+                    .progress-circle svg {
+                        width: 200px;
+                    }
+
+                    .center {
+                        .value {
+                            font-weight: 700;
+                            font-size: 34px;
+                        }
+                    }
+                }
+
+                > .ignite {
+                    grid-column: 3;
+                    grid-row: 1;
+                    position: relative;
+
+                    .progress-circle svg {
+                        width: 200px;
+                    }
+
+                    .center {
+                        .value {
+                            font-weight: 700;
+                            font-size: 34px;
+                        }
+                    }
+                }
+
+                > .stats {
+                    grid-column: 4;
+                    grid-row: 1;
+                    position: relative;
+                    width: auto; /* Match the width of other progress elements */
+
+                    .stats-grid {
+                        display: grid;
+                        grid-template-columns: repeat(3, 1fr);
+                        grid-template-rows: repeat(2, 1fr);
+                        gap: 15px;
+                        padding: 20px;
+                        background: var(--color-bg1);
+                        border: 1px solid var(--color-stroke-light);
+                        border-radius: 4px;
+                        height: 120px; /* Adjust as needed */
+                    }
+
+                    .stat-item {
+                        text-align: center;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        
+                        .title {
+                            color: var(--color-primary-light);
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 1px;
+                            font-size: 12px;
+                            margin-bottom: 4px;
+                            line-height: 1.1;
+                        }
+
+                        .value {
+                            font-weight: 700;
+                            font-size: 25px;
+                            color: #fff;
+                            line-height: 1;
+                        }
+                    }
+                }
+
                 > .info {
-                    float: right;
-                    margin-left: 40px;
+                    grid-column: 5;
+                    grid-row: 1;
+                    justify-self: end;
                     font-size: 14px;
                     color: var(--color-grey);
 
@@ -923,25 +985,26 @@ body {
                         }
                     }
                 }
-            }
-        }
 
-        > .graph {
-            > .search {
-                margin-bottom: 20px;
-
-                .search-player {
-                    width: 200px;
+                /* Fix the histogram to span columns 2-4 (all columns except players) */
+                > .histogram-section {
+                    grid-column: 2 / -1;  /* From column 2 to the end */
+                    grid-row: 2;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                    border-top: 1px solid var(--color-stroke-light);
+                    width: 100%; /* Ensure it takes full width of its grid area */
                 }
-            }
-        }
 
-        > .histogram {
-            > .search {
-                margin-bottom: 20px;
-
-                .search-histogram {
-                    width: 200px;
+                /* Also add this rule in case you're using histogram-wrapper elsewhere */
+                > .histogram-section
+                > .histogram-wrapper {
+                    grid-column: 2 / -1;
+                    grid-row: 2;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                    border-top: 1px solid var(--color-stroke-light);
+                    width: 100%;
                 }
             }
         }

@@ -296,6 +296,7 @@ const defaultConfig = () => {
         reaction_time: 0.5,
         initial_delay: 1.0,
         continuing_delay: 0.01,
+        do_stat_weights: true,
         curse_of_elements: true,
         curse_of_shadows: true,
         judgement_of_wisdom: false,
@@ -365,8 +366,9 @@ const defaultPlayer = () => {
         stats: baseStats("Undead"),
         loadout: baseLoadout(),
         buffs: defaultBuffs(),
-        has_pi: false,
+        pi_count: 0,
         is_target: true,
+        is_vary: true,
         // new: one nested buffs object, booleans/strings only
         talents: common.parseWowheadTalents("23000502-5052122123033151-003"),
         items: [],
@@ -467,32 +469,6 @@ const deleteRaid = (id) => {
 const activeRaid = computed(() => {
     return raids.value.find(raid => raid.id == settings.raid_id);
 });
-
-
-// Fake boolean model that drives checkbox
-const atieshMageModel = computed({
-    get() {
-        console.log('  made it here1');
-        const p = activePlayer || {};
-        const b = p.buffs || {};
-        const val = Number(b.atiesh_mage != null ? b.atiesh_mage : 0);
-        console.log('  count:', val);
-        return val > 0;
-    },
-    set() {
-        console.log('  made it here2');
-        const max = 4;
-        const p = activePlayer || {};
-        console.log('  made it here2', activePlayer);
-        const b = p.buffs || {};
-        const val = Number(b.atiesh_mage != null ? b.atiesh_mage : 0);
-        const next = (val + 1) > max ? 0 : (val + 1);
-        this.activePlayer.buffs.atiesh_mage = next;
-        console.log('new count', next);
-
-    }
-});
-
 
 /*
  * Settings
@@ -716,7 +692,6 @@ const simConfig = () => {
 
     config.players = [];
     for (let p of activeRaid.value.players) {
-        console.log("pushing player", p)
         let player = defaultPlayer();
         for (var key in player)
             player[key] = _.cloneDeep(p[key]);
@@ -724,7 +699,6 @@ const simConfig = () => {
         player.items = simLoadoutItems(p.loadout);
         player.buffs = simBuffs(p);
         player.apl = simApl(p.apl);
-        console.log("new player", player)
         config.players.push(player);
     }
 
@@ -1162,7 +1136,7 @@ const playerConfigExclusive = (e, key, others) => {
         for (let other of others) {
             if (other == key)
                 continue;
-            activePlayer.value[other] = false;
+            activePlayer.value.buffs[other] = false;
         }
     }
 };
@@ -1171,7 +1145,15 @@ const cycleCount = (field) => {
     const max = 4;
     const total = activePlayer.value.buffs.atiesh_mage + activePlayer.value.buffs.atiesh_warlock + Number(activePlayer.value.buffs.moonkin_aura);
     const cur  = Number(activePlayer.value.buffs[field] ?? 0);
-    if (field != "moonkin_aura") {
+    //console.log("hello?", field);
+    if (field === "power_infusion") {
+        const max_pi = 4;
+        if (activePlayer.value.pi_count < max_pi)
+            activePlayer.value.pi_count += 1;
+        else
+            activePlayer.value.pi_count = 0;
+   }
+   else if (field != "moonkin_aura") {
         if (total < max) {
             activePlayer.value.buffs[field] = cur + 1;
         }
@@ -2149,16 +2131,24 @@ const playerDps = (player) => {
 
     return player.dps;
 };
-const filterHistogram = ref(null);
-const filterHistogramOptions = computed(() => {
-    let options = [{value: "total", title: "Total dps"}];
-    if (result.value.ignite_dps)
-        options.push({value: "ignite", title: "Ignite"});
-    return options;
-});
+const statWeight = (wtype) => {
+    if (wtype == "sp") {
+        return (result.value.dps_sp - result.value.dps_select)/15.0/result.value.iterations;
+    } else if (wtype == "crit") {
+        return 10.0 * (result.value.dps_crit - result.value.dps_select) / (result.value.dps_sp - result.value.dps_select);
+    } else if (wtype == "hit") {
+        return 10.0 * (result.value.dps_hit - result.value.dps_select) / (result.value.dps_sp - result.value.dps_select);
+    } else if (wtype == "sp90") {
+        return (result.value.dps90_sp - result.value.dps90_select)/15.0/result.value.iterations;
+    } else if (wtype == "crit90") {
+        return 10.0 * (result.value.dps90_crit - result.value.dps90_select) / (result.value.dps90_sp - result.value.dps90_select);
+    } else if (wtype == "hit90") {
+        return 10.0 * (result.value.dps90_hit - result.value.dps90_select) / (result.value.dps90_sp - result.value.dps90_select);
+    }
+    return 0.0;
+}
+const filterHistogram = ref("total");
 const histogramData = computed(() => {
-    if (filterHistogram.value == "ignite")
-        return result.value.ignite_histogram;
     return result.value.histogram;
 });
 
@@ -2596,14 +2586,14 @@ onMounted(() => {
                                 </div>
                             </div>
                             <div class="form-item">
-                                <checkbox label="Sync buffs" tip="Sync buffs between all players">
+                                <checkbox label="Sync Buffs" tip="Sync buffs between all players">
                                     <input type="checkbox" v-model="activeRaid._sync_buffs" @change="onSyncBuffs">
                                 </checkbox>
-                                <checkbox label="Power Infusion" tip="PI is available to player">
-                                    <input type="checkbox" v-model="activePlayer.has_pi">
-                                </checkbox>
-                                <checkbox label="Target" tip="Player is considered in DPS calculation">
+                                <checkbox label="Stat Weight Target" tip="Player output is counted in stat weights">
                                     <input type="checkbox" v-model="activePlayer.is_target">
+                                </checkbox>
+                                <checkbox label="Stat Weight Differential" tip="Player stats are varied in stat weights">
+                                    <input type="checkbox" v-model="activePlayer.is_vary">
                                 </checkbox>
                             </div>
                             <div class="form-item">
@@ -2626,6 +2616,13 @@ onMounted(() => {
                                     <label @click="cycleCount('moonkin_aura')" :class="{ active: activePlayer.buffs.moonkin_aura }" @mouseenter="showTip = true" @mouseleave="showTip = false">
                                         <wowicon icon="moonkin_aura" />
                                         <tooltip v-show="showTip" class="tip">Moonkin aura</tooltip>
+                                    </label>
+                                    <label @click="cycleCount('power_infusion')" :class="{ active: activePlayer.pi_count }" @mouseenter="showTip = true" @mouseleave="showTip = false">
+                                        <wowicon icon="power_infusion" />
+                                        <span v-if="Number(activePlayer.pi_count) > 1" class="counter-badge">
+                                            {{ activePlayer.pi_count }}
+                                        </span>
+                                        <tooltip v-show="showTip" class="tip">Power Infusion</tooltip>
                                     </label>
                                 </div>
                             </div>
@@ -2972,15 +2969,12 @@ onMounted(() => {
                         </button>
                         <template v-if="result.iterations">
                             <button class="tab" :class="{active: activeResultTab == 'histogram'}" @click="activeResultTab = 'histogram'">
-                                Histogram
+                                Comparison
                             </button>
                         </template>
                         <template v-else>
                             <button class="tab" :class="{active: activeResultTab == 'log'}" @click="activeResultTab = 'log'">
                                 Combat log
-                            </button>
-                            <button class="tab" :class="{active: activeResultTab == 'graph'}" @click="activeResultTab = 'graph'">
-                                Graph
                             </button>
                         </template>
                     </div>
@@ -3004,9 +2998,7 @@ onMounted(() => {
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-item" v-if="result.ignite_dps">
-                                    <checkbox label="Normalize ignite"><input type="checkbox" v-model="settings.normalize_ignite"></checkbox>
-                                </div>
+
                             </div>
                             <div class="total progress-wrapper">
                                 <progress-circle :value="1" :animate="true" />
@@ -3027,6 +3019,49 @@ onMounted(() => {
                                     </div>
                                 </div>
                             </div>
+                            <!-- NEW STATS SECTION -->
+                            <div class="stats" v-if="result.iterations">
+                                <div class="stats-grid">
+                                    <div class="stat-item">
+                                        <div class="title">SP per Crit %</div>
+                                        <div class="value">
+                                            <animate-number :end="statWeight('crit') || 0" :decimals="1" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">SP per Hit %</div>
+                                        <div class="value">
+                                            <animate-number :end="statWeight('hit') || 0" :decimals="1" />
+                                        </div>
+                                        <tooltip position="topright">Invalid if player hit is 98% or 99%</tooltip>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">DPS per SP</div>
+                                        <div class="value">
+                                            <animate-number :end="statWeight('sp') || 0" :decimals="2" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">SP per Crit % @90</div>
+                                        <div class="value">
+                                            <animate-number :end="statWeight('crit90') || 0" :decimals="1" />
+                                        </div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">SP per Hit % @90</div>
+                                        <div class="value">
+                                            <animate-number :end="statWeight('hit90') || 0" :decimals="1" />
+                                        </div>
+                                        <tooltip position="topright">Invalid if player hit is 98% or 99%</tooltip>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="title">DPS per SP @90</div>
+                                        <div class="value">
+                                            <animate-number :end="statWeight('sp90') || 0" :decimals="2" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>                            
                             <div class="info">
                                 <table>
                                     <tbody>
@@ -3038,27 +3073,17 @@ onMounted(() => {
                                     </tbody>
                                 </table>
                             </div>
+                            <div class="histogram-section" v-if="result.iterations">
+                                <histogram :data="histogramData" />
+                            </div>
                         </div>
                     </div>
 
                     <div class="histogram" v-if="activeResultTab == 'histogram'">
-                        <div class="search">
-                            <div class="search-histogram">
-                                <select-simple v-model="filterHistogram" :options="filterHistogramOptions" :fill-missing="true" />
-                            </div>
+                        <div style="padding: 20px; text-align: center; color: #999;">
+                            Comparison features coming soon...
                         </div>
-                        <histogram :data="histogramData" />
                     </div>
-
-                    <div class="graph" v-if="activeResultTab == 'graph'">
-                        <div class="search">
-                            <div class="search-player">
-                                <select-simple v-model="filterPlayer" :options="filterPlayerOptions" empty-option="All players" />
-                            </div>
-                        </div>
-                        <combat-chart :result="result" :player="filterPlayer" />
-                    </div>
-
                     <template v-if="result.iterations">
 
                     </template>

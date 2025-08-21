@@ -10,7 +10,6 @@ fn action_to_buff(action: Action) -> Option<Buff> {
         Action::Toep => Some(Buff::Toep),
         Action::Zhc => Some(Buff::Zhc),
         Action::Mqg => Some(Buff::Mqg),
-        Action::PowerInfusion => Some(Buff::PowerInfusion),
         _ => None,
     }
 }
@@ -24,6 +23,8 @@ fn action_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
         }
     } else if action == Action::FireBlast {
         return st.lanes[lane].fb_cooldown <= 0.0;
+    } else if action == Action::PowerInfusion {
+        return st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() <= 0.0;
     }
 
     true
@@ -133,7 +134,9 @@ impl AdaptiveMage {
         // Iterate through items in priority order
         for item in items {
             if self.evaluate_condition(&item.condition, st, lane) {
-                return Some(item.action);
+                if action_ready_for_action(st, lane, item.action) {
+                    return Some(item.action);
+                }
             }
         }
         None
@@ -258,7 +261,6 @@ impl AdaptiveMage {
             23723 => Some(Buff::Mqg),     // MIND_QUICKENING  
             23271 => Some(Buff::Toep),    // EPHEMERAL_POWER
             24658 => Some(Buff::Zhc),     // UNSTABLE_POWER
-            10060 => Some(Buff::PowerInfusion), // POWER_INFUSION
             _ => None,
         }
     }
@@ -277,6 +279,7 @@ impl AdaptiveMage {
                 match value.vint {
                     29977 => if st.lanes[lane].comb_cooldown > 0.0 { 1.0 } else { 0.0 }, // COMBUSTION
                     10199 => if st.lanes[lane].fb_cooldown > 0.0 { 1.0 } else { 0.0 },   // FIRE_BLAST
+                    10060 => if st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() > 0.0 { 1.0 } else { 0.0 },   // PI
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             if st.lanes[lane].buff_cooldown[buff as usize] > 0.0 { 1.0 } else { 0.0 }
@@ -291,6 +294,7 @@ impl AdaptiveMage {
                 match value.vint {
                     29977 => st.lanes[lane].comb_cooldown.max(0.0), // COMBUSTION
                     10199 => st.lanes[lane].fb_cooldown.max(0.0),   // FIRE_BLAST
+                    10060 => st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap().max(0.0),
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             st.lanes[lane].buff_cooldown[buff as usize].max(0.0)
@@ -304,6 +308,7 @@ impl AdaptiveMage {
             AplValueType::PlayerAuraExists => {
                 match value.vint {
                     29977 => st.lanes[lane].comb_left as f64, // COMBUSTION - use comb_left
+                    10060 => if st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap() > 0.0 { 1.0 } else { 0.0 },
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             if st.lanes[lane].buff_timer[buff as usize] > 0.0 { 1.0 } else { 0.0 }
@@ -317,6 +322,7 @@ impl AdaptiveMage {
             AplValueType::PlayerAuraDuration => {
                 match value.vint {
                     29977 => 0.0, // COMBUSTION - no duration for combustion aura
+                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap(),                 
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             st.lanes[lane].buff_timer[buff as usize].max(0.0)
@@ -493,9 +499,7 @@ impl MageDecider for AdaptiveMage {
         // Opener is complete, now use the adaptive priority list
         if let Some(action) = self.conditional_action(&self.items, st, lane) {
             // Check if this action is ready (for buff actions)
-            if action_ready_for_action(st, lane, action) {
-                return Some((action, self.recast_delay));
-            }
+            return Some((action, self.recast_delay));
         }
         
         // Fall back to default action

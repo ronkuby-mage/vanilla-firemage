@@ -49,7 +49,7 @@ const defaultApls = () => {
 
     // spam scorch
     let spam_scorch = apl.apl();
-    spam_scorch.id = "fire-naxx-maintain-scorch";
+    spam_scorch.id = "fire-naxx-scorch";
     spam_scorch.name = "Spam Scorch";
     spam_scorch.defaultAction.action = apl.getAction("Scorch");
     items = [];
@@ -255,6 +255,25 @@ const defaultApls = () => {
     cd_imf.items = _.cloneDeep(items);
     cd_imf.fixedSequence.action = _.cloneDeep(initial_actions);
     data.push(cd_imf);
+
+    // amber
+    let amber = apl.apl();
+    amber.id = "fire-naxx-amber";
+    amber.name = "Amber Special";
+    items = [];    
+
+    item = apl.item();
+    item.condition.condition_type = apl.condition_type.FALSE;
+    item.condition.values = [apl.value()];
+    item.condition.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+    item.condition.values[0].vint = common.auras.POWER_INFUSION;
+    item.action = apl.getAction("PowerInfusion");
+    items.push(item);
+
+    amber.items = _.cloneDeep(items);
+    amber.fixedSequence.action = _.cloneDeep(initial_actions);
+    data.push(amber);
+
 
     let blank = apl.apl();
     blank.id = "preset-blank";

@@ -692,7 +692,7 @@ const simConfig = (raid = null) => {
         config.judgement_of_wisdom = false;
 
     config.players = [];
-    for (let p of activeRaid.value.players) {
+    for (let p of raid.players) {
         let player = defaultPlayer();
         for (var key in player)
             player[key] = _.cloneDeep(p[key]);
@@ -732,13 +732,18 @@ const simProgress = reactive({
 const runMultiple = () => {
     let iterations = settings.iterations;
     let configs = [];
+    const config = simConfig();
+    const duration = config.duration;
+    const variance = config.duration_variance;
     
     // Multiple iterations run all raids with in_comparison checked
     for (let raid of raids.value) {
         if (raid.config.in_comparison) {
-            let config = simConfig(raid);
+            let config = _.cloneDeep(simConfig(raid));
             config.raid_id = raid.id;
             config.raid_name = raid.name;
+            config.duration = duration
+            config.duration_variance = variance
             config.is_active_raid = (raid.id === activeRaid.value.id);
             configs.push(config);
         }

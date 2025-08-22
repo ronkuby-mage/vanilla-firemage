@@ -11,13 +11,6 @@ class SimContainer {
         this.start_time = null;
         this.results_by_raid = new Map(); // Store results for each raid
 
-
-        console.log('[SimContainer] Constructor:', {
-            iterations: this.iterations,
-            configCount: this.configs.length,
-            threads: this.threads
-        });
-
         if (!this.threads || isNaN(this.threads))
             throw "Invalid threads";
         if (!this.iterations || isNaN(this.iterations))
@@ -25,12 +18,6 @@ class SimContainer {
 
         let run_itr = Math.max(50, Math.min(200, Math.ceil(this.iterations/this.threads)));
         let num_workers = Math.min(this.threads, Math.ceil(this.iterations/run_itr));
-
-        console.log('[SimContainer] Run info:', {
-            1: run_itr,
-            2: num_workers
-        });
-
 
         // Create runs for each config
         for (let config of this.configs) {
@@ -46,8 +33,6 @@ class SimContainer {
                 });
             }
         }
-
-        console.log('[SimContainer] Created runs:', this.runs.length);        
 
         for (let i = 0; i < num_workers; i++) {
             this.workers.push(new Worker());
@@ -66,29 +51,20 @@ class SimContainer {
                     
                     // Initialize or merge results for this raid
                     if (!this.results_by_raid.has(raid_id)) {
-                        console.log('[SimContainer] New raid result:', raid_id, data.is_active_raid);                        
                         this.results_by_raid.set(raid_id, {
                             ...data.result,
                             raid_id: raid_id,
                             raid_name: data.raid_name,
                             is_active_raid: data.is_active_raid,
-                            dps_timeline: data.result.dps_timeline || []
+                            damage_log: data.result.damage_log || []
                         });
                     } else {
-                        console.log('[SimContainer] Merging raid result:', raid_id, data.is_active_raid);                        
                         this.mergeResults(raid_id, data.result);
                     }
 
                     // Check if all runs are complete
                     const completedIterations = this.getTotalCompletedIterations();
                     const totalExpectedIterations = this.iterations * this.configs.length;
-
-                    console.log('[SimContainer] Progress:', {
-                        completed: completedIterations,
-                        expected: totalExpectedIterations,
-                        raidsCompleted: this.results_by_raid.size,
-                        configsCount: this.configs.length
-                    });                    
 
                     if (onProgress) {
                         const progress = {
@@ -181,16 +157,16 @@ class SimContainer {
         }
 
         // Merge DPS timeline
-        if (newResult.dps_timeline) {
-            if (!sum.dps_timeline) sum.dps_timeline = [];
+        if (newResult.damage_log) {
+            if (!sum.damage_log) sum.damage_log = [];
             // Average the timelines
-            for (let i = 0; i < newResult.dps_timeline.length; i++) {
-                if (i < sum.dps_timeline.length) {
-                    sum.dps_timeline[i] = (sum.dps_timeline[i] * sum.iterations + 
-                                          newResult.dps_timeline[i] * newResult.iterations) / 
+            for (let i = 0; i < newResult.damage_log.length; i++) {
+                if (i < sum.damage_log.length) {
+                    sum.damage_log[i] = (sum.damage_log[i] * sum.iterations + 
+                                          newResult.damage_log[i] * newResult.iterations) / 
                                           (sum.iterations + newResult.iterations);
                 } else {
-                    sum.dps_timeline[i] = newResult.dps_timeline[i];
+                    sum.damage_log[i] = newResult.damage_log[i];
                 }
             }
         }
@@ -227,7 +203,7 @@ class SimContainer {
             }
             
             // Calculate stats for comparison
-            const dps_over_time = result.dps_timeline || [];
+            const dps_over_time = result.damage_log || [];
             const avg_dps = result.dps;
             const peak_dps = dps_over_time.length > 0 ? Math.max(...dps_over_time) : result.dps;
             const time_to_peak = dps_over_time.length > 0 ? 
@@ -276,8 +252,6 @@ class SimContainer {
             raid_id: run.raid_id,
             raid_name: run.raid_name,
             is_active_raid: run.is_active_raid,
-            track_timeline: true, // Tell worker to track DPS over time
-            do_stat_weights: run.is_active_raid // Only do stat weights for active raid
         });
         run.started = true;
     }

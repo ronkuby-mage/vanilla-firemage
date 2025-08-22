@@ -13,10 +13,10 @@ onmessage = (event) => {
             else {
                 result = run_simulations(event.data.config, event.data.iterations);
             }
-
             postMessage({
                 type: "success",
-                raid_id: event.data.config.raid_id,
+                raid_id: event.data.raid_id,        // Changed from event.data.config.raid_id
+                raid_name: event.data.raid_name,    // Changed from event.data.config.raid_name  
                 is_active_raid: event.data.is_active_raid,
                 result: result,
             });

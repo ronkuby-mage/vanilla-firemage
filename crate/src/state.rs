@@ -4,7 +4,7 @@ use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use crate::constants as C;
 use crate::constants::{Action, Spell, Constants};
-use crate::orchestration::{SpellResult, LogType, LogEntry};
+use crate::orchestration::{DamageAccumulator, LogEntry, LogType, SpellResult};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Totals {
@@ -133,6 +133,7 @@ pub struct State {
     pub totals: Totals,
     pub log_enabled: bool,
     pub log: Vec<LogEntry>,
+    pub damage_log: Vec<DamageAccumulator>,
 }
 
 impl State {
@@ -145,6 +146,7 @@ impl State {
             totals: Totals::default(),
             log_enabled: false,
             log: vec![],
+            damage_log: vec![],
         }
     }
 
@@ -429,8 +431,6 @@ impl State {
             if self.log_enabled {
                 self.log_spell_impact(lane as i32, spell_string, 0.0, SpellResult::Miss);
             }
-            // ---- now take the mutable borrow of this lane ----
-
             return;
         }
 
@@ -561,6 +561,8 @@ impl State {
                 self.log_spell_impact(lane as i32, spell_string, spell_damage, SpellResult::Hit);
                 //println!("  {:6.2} mage {} spell {} hit  for {}", self.global.running_time, lane, spell_string, spell_damage)
             }
+        } else {
+            self.damage_log.push(DamageAccumulator { time: self.global.running_time, damage: spell_damage});
         }
 
     }
@@ -586,10 +588,12 @@ impl State {
         if self.boss.spell_vulnerability > 0.0 { mult *= 1.0 + C::NIGHTFALL_VULN; }
         let r: f64 = rng.r#gen();
         mult *= if r < C::RES_THRESH[1] { C::RES_AMOUNT[0] } else if r < C::RES_THRESH[2] { C::RES_AMOUNT[1] } else if r < C::RES_THRESH[3] { C::RES_AMOUNT[2] } else { C::RES_AMOUNT[3] };
-        self.totals.ignite_damage += mult * self.boss.ignite_value;
+        let ignite_damage = mult * self.boss.ignite_value;
+        self.totals.ignite_damage += ignite_damage;
         if self.log_enabled {
-            self.log_tick(mult * self.boss.ignite_value);
-            //println!("  {:6.2} in ignite {} mult {}", self.global.running_time, mult * self.boss.ignite_value, mult);
+            self.log_tick(ignite_damage);
+        } else {
+            self.damage_log.push(DamageAccumulator { time: self.global.running_time, damage: ignite_damage});
         }
 
     }

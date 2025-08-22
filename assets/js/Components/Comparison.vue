@@ -10,7 +10,12 @@ const props = defineProps({
 const chartCanvas = ref(null);
 const showAll = ref(true);
 const selectedRaid = ref(null);
+const dpsMode = ref('total'); // Add this new ref
 let chartInstance = null;
+const dpsModeOptions = computed(() => [
+    { value: 'total', title: 'Total DPS' },
+    { value: 'per-mage', title: 'Per Mage DPS' }
+]);
 
 const hasComparisonData = computed(() => {
     return props.result?.comparison_data?.length > 0;
@@ -44,7 +49,7 @@ const renderChart = () => {
     
     // Generate time labels
     const maxPoints = Math.max(...data.map(r => r.dps_over_time?.length || 0));
-    const duration = props.activeRaid?.config?.duration || 60;
+    const duration = (props.activeRaid?.config?.duration - props.activeRaid?.config?.duration_variance) || 60;
     const timeInterval = duration / maxPoints;
     const labels = Array.from({length: maxPoints}, (_, i) => (i * timeInterval).toFixed(0));
     
@@ -57,6 +62,8 @@ const renderChart = () => {
         'rgb(255, 159, 64)'
     ];
     
+    console.log("I have a data", data)
+
     const datasets = data.map((raid, index) => ({
         label: raid.raid_name,
         data: raid.dps_over_time || [],
@@ -156,6 +163,7 @@ onUnmounted(() => {
         <div class="comparison-content" v-if="hasComparisonData">
             <div class="comparison-controls">
                 <div class="control-group">
+                    <!--
                     <label class="checkbox-label">
                         <input type="checkbox" v-model="showAll">
                         <span>Show all raids</span>
@@ -166,13 +174,27 @@ onUnmounted(() => {
                         :options="raidOptions"
                         placeholder="Select raid..."
                     />
+                    -->
+
+                    <select-simple 
+                        v-model="dpsMode"
+                        :options="dpsModeOptions"
+                        placeholder="DPS Mode..."
+                    />
+                    <select-simple 
+                        v-if="!showAll"
+                        v-model="selectedRaid" 
+                        :options="raidOptions"
+                        placeholder="Select raid..."
+                    />
+
                 </div>
             </div>
             
             <div class="chart-wrapper">
                 <canvas ref="chartCanvas" class="dps-chart"></canvas>
             </div>
-            
+            <!--
             <div class="comparison-table">
                 <table>
                     <thead>
@@ -197,6 +219,7 @@ onUnmounted(() => {
                     </tbody>
                 </table>
             </div>
+            -->
         </div>
         <div class="no-data" v-else>
             <p>No comparison data available.</p>

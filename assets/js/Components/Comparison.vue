@@ -84,7 +84,8 @@ const renderChart = () => {
     // Generate time labels
     const maxPoints = Math.max(...data.map(r => r.dps_over_time?.length || 0));
     const duration = (props.activeRaid?.config?.duration - props.activeRaid?.config?.duration_variance) || 60;
-    const timeInterval = duration / maxPoints;
+    const timeInterval = duration / (maxPoints - 1);
+    const chartColor = '#dfdfdf';
 
     // Create labels that match the data points
     const labels = Array.from({length: maxPoints}, (_, i) => (i * timeInterval).toFixed(1));
@@ -93,8 +94,6 @@ const renderChart = () => {
         let chartData = raid.dps_over_time || [];
         
         // If per-mage mode is selected, divide by number of players
-        console.log("and here", raid)
-        console.log('Available properties:', Object.keys(raid));
         if (dpsMode.value === 'per-mage' && raid?.players) {
             const playerCount = raid.players.length;
             chartData = chartData.map(dpsValue => dpsValue / playerCount);
@@ -122,17 +121,16 @@ const renderChart = () => {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            backgroundColor: '#000000',
-            color: '#dfdfdf',
+            color: chartColor,
             plugins: {
                 legend: {
                     position: 'top',
-                    color: '#dfdfdf'
+                    color: chartColor
                 },
                 title: {
                     display: true,
                     text: dpsMode.value === 'per-mage' ? 'DPS Per Mage Over Time Comparison' : 'DPS Over Time Comparison',
-                    color: '#dfdfdf'
+                    color: chartColor
                 },
                 tooltip: {
                     enabled: false
@@ -156,7 +154,7 @@ const renderChart = () => {
                     title: {
                         display: true,
                         text: 'Time (seconds)',
-                        color: '#dfdfdf'
+                        color: chartColor
                     },
                     ticks: {
                         callback: function(value, index, values) {
@@ -169,10 +167,10 @@ const renderChart = () => {
                             
                             return timeValue.toFixed(decimals);
                         },
-                        color: '#dfdfdf',
+                        color: chartColor,
                     },
                     grid: {
-                       color: '#afafaf',
+                       color: '#7f7f7f',
                     }
                 },
                 y: {
@@ -180,14 +178,14 @@ const renderChart = () => {
                     title: {
                         display: true,
                         text: dpsMode.value === 'per-mage' ? 'DPS per Mage' : 'DPS',
-                        color: '#dfdfdf',
+                        color: chartColor,
                     },
                     beginAtZero: false,
                     ticks: {
-                        color: '#dfdfdf'
+                        color: chartColor
                     },
                     grid: {
-                       color: '#afafaf',
+                       color: '#7f7f7f',
                     }
                 }
             },

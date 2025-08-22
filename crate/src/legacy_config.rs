@@ -12,6 +12,8 @@ use serde_json::Value;
 // ---- JS -> Rust legacy shapes (from App.vue / simConfig) ----
 #[derive(Debug, Deserialize)]
 pub struct LegacyConfig {
+    pub raid_id: Option<String>, // In case we need it
+    pub is_active_raid: Option<bool>,
     pub duration: Option<f64>,
     pub duration_variance: Option<f64>,
     pub curse_of_elements: Option<bool>,
@@ -23,7 +25,6 @@ pub struct LegacyConfig {
     pub initial_delay: Option<f64>,
     pub continuing_delay: Option<f64>,
     pub boss: Option<String>,
-    pub do_stat_weights: Option<bool>,
     pub players: Vec<LegacyPlayer>,
     // Optional RNG seed if UI sends it; fallback to host seed
     pub rng_seed: Option<u64>,
@@ -249,7 +250,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     let dragonling: f64 = cfg.arcanite_dragonling.as_ref().and_then(parse_f64).unwrap_or(f64::INFINITY);
     let nightfall: Vec<f64> = [cfg.nightfall1, cfg.nightfall2, cfg.nightfall3].into_iter().filter_map(|opt| opt.as_ref().and_then(parse_f64)).map(|f| f.max(1.0)).collect();
     let coe:bool = if cfg.curse_of_elements.unwrap_or(false) { true } else {false};
-    let dsw:bool = if cfg.do_stat_weights.unwrap_or(false) { true } else {false};
+    let dsw:bool = if cfg.is_active_raid.unwrap_or(false) { true } else {false};
 
     let config = Configuration {
         num_mages: nm,

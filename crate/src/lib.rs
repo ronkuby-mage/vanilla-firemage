@@ -74,6 +74,7 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
             results.dps90_hit += (iterations as f64) * results_hit.players[*idx as usize].ninetieth / (target_players as f64);
         }
     }
+    //log::debug!("Engine made it THIS!!!!! far. {:?}", results);
 
     serde_wasm_bindgen::to_value(&results).unwrap()
 }

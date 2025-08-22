@@ -1008,6 +1008,98 @@ body {
                 }
             }
         }
+
+        > .comparison {
+            height: 80vh;
+            overflow: hidden;
+
+            .comparison-content {
+                padding: 20px;
+                height: calc(100% - 40px); /* Account for padding */
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .comparison-controls {
+                margin-bottom: 20px;
+                flex-shrink: 0;
+
+                .control-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 20px;
+                    flex-wrap: wrap; /* Allow wrapping if needed */
+                }
+                
+                .checkbox-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    cursor: pointer;
+                    
+                    input[type="checkbox"] {
+                        cursor: pointer;
+                    }
+                }
+
+                .select-simple {
+                    min-width: 150px;
+                }                
+            }
+        
+            .chart-wrapper {
+                height: calc(100% - 60px); /* Account for controls height + margin */
+                margin: 0;
+                background: #0a0a0a;
+                border-radius: 8px;
+                padding: 15px;
+                box-sizing: border-box;
+                
+                .dps-chart {
+                    width: 100% !important;
+                    height: 100% !important;
+                    display: block;
+                }
+            }
+            
+            .comparison-table {
+                background: #1a1a1a;
+                border-radius: 8px;
+                overflow: hidden;
+                
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    
+                    th, td {
+                        padding: 12px;
+                        text-align: left;
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    }
+                    
+                    th {
+                        background: rgba(255, 255, 255, 0.05);
+                        font-weight: 600;
+                    }
+                    
+                    .active-raid {
+                        background: rgba(255, 255, 255, 0.05);
+                        font-weight: bold;
+                    }
+                }
+            }
+            
+            .no-data {
+                padding: 40px;
+                text-align: center;
+                color: #999;
+                
+                p {
+                    margin: 10px 0;
+                }
+            }
+        }
+
     }
 }
 

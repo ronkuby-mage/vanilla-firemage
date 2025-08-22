@@ -4,7 +4,6 @@ import AplAction from "./Components/AplAction.vue";
 import AplCondition from "./Components/AplCondition.vue";
 import AplValue from "./Components/AplValue.vue";
 import Checkbox from "./Components/Checkbox.vue";
-import CombatChart from "./Components/CombatChart.vue";
 import Help from "./Components/Help.vue";
 import Histogram from "./Components/Histogram.vue";
 import Micon from "./Components/Micon.vue";
@@ -16,6 +15,7 @@ import Spotlight from "./Components/Spotlight.vue";
 import TalentCalculator from "./Components/TalentCalculator.vue";
 import Tooltip from "./Components/Tooltip.vue";
 import Wowicon from "./Components/Wowicon.vue";
+import Comparison from './Components/Comparison.vue';
 
 export default {
     install(app) {
@@ -25,7 +25,7 @@ export default {
         app.component("apl-condition", AplCondition);
         app.component("apl-value", AplValue);
         app.component("checkbox", Checkbox);
-        app.component("combat-chart", CombatChart);
+        app.component("comparison", Comparison);
         app.component("help", Help);
         app.component("histogram", Histogram);
         app.component("micon", Micon);

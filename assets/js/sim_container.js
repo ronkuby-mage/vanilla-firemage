@@ -1,13 +1,15 @@
 import Worker from "./sim_worker.js?worker";
 
 class SimContainer {
-    constructor(threads, iterations, config, onSuccess, onError, onProgress) {
-        this.config = _.cloneDeep(config);
+    constructor(threads, iterations, configs, onSuccess, onError, onProgress) {
+        // Handle both single config (backward compatibility) and multiple configs
+        this.configs = Array.isArray(configs) ? _.cloneDeep(configs) : [_.cloneDeep(configs)];
         this.threads = threads;
         this.iterations = parseInt(iterations);
         this.workers = [];
         this.runs = [];
         this.start_time = null;
+        this.results_by_raid = new Map(); // Store results for each raid
 
         if (!this.threads || isNaN(this.threads))
             throw "Invalid threads";
@@ -17,22 +19,26 @@ class SimContainer {
         let run_itr = Math.max(50, Math.min(200, Math.ceil(this.iterations/this.threads)));
         let num_workers = Math.min(this.threads, Math.ceil(this.iterations/run_itr));
 
-        for (let total = 0; total < this.iterations; total+= run_itr) {
-            run_itr = Math.min(run_itr, this.iterations - total);
-            this.runs.push({
-                iterations: run_itr,
-                started: false,
-            });
+        // Create runs for each config
+        for (let config of this.configs) {
+            for (let total = 0; total < this.iterations; total += run_itr) {
+                let itr = Math.min(run_itr, this.iterations - total);
+                this.runs.push({
+                    iterations: itr,
+                    config: config,
+                    raid_id: config.raid_id,
+                    raid_name: config.raid_name,
+                    is_active_raid: config.is_active_raid,
+                    started: false,
+                });
+            }
         }
 
-        let sum = null;
-
-        for (let i=0; i<num_workers; i++) {
+        for (let i = 0; i < num_workers; i++) {
             this.workers.push(new Worker());
 
             this.workers[i].onmessage = (event) => {
                 let data = event.data;
-
 
                 if (data.type == "error") {
                     this.workers[i].terminate();
@@ -41,56 +47,59 @@ class SimContainer {
 
                 // Thread done
                 if (data.type == "success") {
-
-                    // Merge results
-                    if (!sum) {
-                        sum = data.result;
+                    const raid_id = data.raid_id;
+                    
+                    // Initialize or merge results for this raid
+                    if (!this.results_by_raid.has(raid_id)) {
+                        this.results_by_raid.set(raid_id, {
+                            ...data.result,
+                            raid_id: raid_id,
+                            raid_name: data.raid_name,
+                            is_active_raid: data.is_active_raid,
+                            damage_log: data.result.damage_log || []
+                        });
+                    } else {
+                        this.mergeResults(raid_id, data.result);
                     }
-                    else {
-                        if (data.result.min_dps < sum.min_dps)
-                            sum.min_dps = data.result.min_dps;
-                        if (data.result.max_dps > sum.max_dps)
-                            sum.max_dps = data.result.max_dps;
-                        sum.dps = (sum.dps * sum.iterations + data.result.dps * data.result.iterations) / (sum.iterations + data.result.iterations);
-                        sum.ignite_dps = (sum.ignite_dps * sum.iterations + data.result.ignite_dps * data.result.iterations) / (sum.iterations + data.result.iterations);
 
-                        if (data.result.histogram) {
-                            for (const [key, val] of data.result.histogram) {
-                                let acc = sum.histogram.get(key);
-                                sum.histogram.set(key, val + (acc ? acc : 0));
+                    // Check if all runs are complete
+                    const completedIterations = this.getTotalCompletedIterations();
+                    const totalExpectedIterations = this.iterations * this.configs.length;
+
+                    if (onProgress) {
+                        const progress = {
+                            iterations: Math.floor(completedIterations / this.configs.length),
+                            dps: this.calculateAverageDps(),
+                        };
+                        onProgress(progress);
+                    }
+
+                    // Special handling for single iteration
+                    if (this.iterations === 1) {
+                        // For single iteration, check if this specific raid is complete
+                        const raidResult = this.results_by_raid.get(raid_id);
+                        if (raidResult && raidResult.iterations === 1) {
+                            // Check if all raids are complete
+                            if (this.results_by_raid.size === this.configs.length) {
+                                this.workers[i].terminate();
+                                const finalResult = this.compileFinalResults();
+                                finalResult.time = (Date.now() - this.start_time) / 1000;
+                                onSuccess(finalResult);
+                            } else if (!this.startNextRun(i)) {
+                                this.workers[i].terminate();
                             }
                         }
-
-                        for (let j=0; j<sum.players.length; j++) {
-                            sum.players[j].dps = (sum.players[j].dps * sum.iterations + data.result.players[j].dps * data.result.iterations) / (sum.iterations + data.result.iterations);
-                            sum.players[j].ignite_dps = (sum.players[j].ignite_dps * sum.iterations + data.result.players[j].ignite_dps * data.result.iterations) / (sum.iterations + data.result.iterations);
-                        }
-
-                        if (data.result.dps_sp) {
-                            sum.dps_select = sum.dps_select + data.result.dps_select;
-                            sum.dps_sp = sum.dps_sp + data.result.dps_sp;
-                            sum.dps_crit = sum.dps_crit + data.result.dps_crit;
-                            sum.dps_hit = sum.dps_hit + data.result.dps_hit;
-                            sum.dps90_select = sum.dps90_select + data.result.dps90_select;
-                            sum.dps90_sp = sum.dps90_sp + data.result.dps90_sp;
-                            sum.dps90_crit = sum.dps90_crit + data.result.dps90_crit;
-                            sum.dps90_hit = sum.dps90_hit + data.result.dps90_hit;
-                        }
-
-                        sum.iterations+= data.result.iterations;
-                    }
-
-                    if (onProgress)
-                        onProgress(sum);
-
-                    if (this.iterations == 1 || sum.iterations == this.iterations) {
-                        this.workers[i].terminate();
-                        sum.time = (Date.now() - this.start_time) / 1000;
-                        onSuccess(sum);
-                    }
-                    else {
-                        if (!this.startNextRun(i))
+                    } else {
+                        // Multiple iterations handling
+                        if (completedIterations >= totalExpectedIterations) {
                             this.workers[i].terminate();
+                            const finalResult = this.compileFinalResults();
+                            finalResult.time = (Date.now() - this.start_time) / 1000;
+                            onSuccess(finalResult);
+                        } else {
+                            if (!this.startNextRun(i))
+                                this.workers[i].terminate();
+                        }
                     }
                 }
             };
@@ -100,35 +109,160 @@ class SimContainer {
                 this.workers[i].terminate();
             };
         }
+
+    }
+
+    mergeResults(raid_id, newResult) {
+        let sum = this.results_by_raid.get(raid_id);
+        
+        if (newResult.min_dps < sum.min_dps)
+            sum.min_dps = newResult.min_dps;
+        if (newResult.max_dps > sum.max_dps)
+            sum.max_dps = newResult.max_dps;
+            
+        sum.dps = (sum.dps * sum.iterations + newResult.dps * newResult.iterations) / 
+                  (sum.iterations + newResult.iterations);
+        sum.ignite_dps = (sum.ignite_dps * sum.iterations + newResult.ignite_dps * newResult.iterations) / 
+                         (sum.iterations + newResult.iterations);
+
+        // Merge histograms
+        if (newResult.histogram) {
+            if (!sum.histogram) sum.histogram = new Map();
+            for (const [key, val] of newResult.histogram) {
+                let acc = sum.histogram.get(key);
+                sum.histogram.set(key, val + (acc ? acc : 0));
+            }
+        }
+
+        // Merge player data
+        for (let j = 0; j < sum.players.length; j++) {
+            sum.players[j].dps = (sum.players[j].dps * sum.iterations + 
+                                 newResult.players[j].dps * newResult.iterations) / 
+                                 (sum.iterations + newResult.iterations);
+            sum.players[j].ignite_dps = (sum.players[j].ignite_dps * sum.iterations + 
+                                         newResult.players[j].ignite_dps * newResult.iterations) / 
+                                         (sum.iterations + newResult.iterations);
+        }
+
+        // Merge stat weights (only for active raid)
+        if (sum.is_active_raid && newResult.dps_sp) {
+            sum.dps_select = (sum.dps_select || 0) + newResult.dps_select;
+            sum.dps_sp = (sum.dps_sp || 0) + newResult.dps_sp;
+            sum.dps_crit = (sum.dps_crit || 0) + newResult.dps_crit;
+            sum.dps_hit = (sum.dps_hit || 0) + newResult.dps_hit;
+            sum.dps90_select = (sum.dps90_select || 0) + newResult.dps90_select;
+            sum.dps90_sp = (sum.dps90_sp || 0) + newResult.dps90_sp;
+            sum.dps90_crit = (sum.dps90_crit || 0) + newResult.dps90_crit;
+            sum.dps90_hit = (sum.dps90_hit || 0) + newResult.dps90_hit;
+        }
+
+        // Merge DPS timeline
+        if (newResult.damage_log) {
+            if (!sum.damage_log) sum.damage_log = [];
+            // Average the timelines
+            for (let i = 0; i < newResult.damage_log.length; i++) {
+                if (i < sum.damage_log.length) {
+                    sum.damage_log[i] = (sum.damage_log[i] * sum.iterations + 
+                                          newResult.damage_log[i] * newResult.iterations) / 
+                                          (sum.iterations + newResult.iterations);
+                } else {
+                    sum.damage_log[i] = newResult.damage_log[i];
+                }
+            }
+        }
+
+        sum.iterations += newResult.iterations;
+    }
+
+    getTotalCompletedIterations() {
+        let total = 0;
+        for (let result of this.results_by_raid.values()) {
+            total += result.iterations;
+        }
+        return total;
+    }
+
+    calculateAverageDps() {
+        let totalDps = 0;
+        let count = 0;
+        for (let result of this.results_by_raid.values()) {
+            totalDps += result.dps;
+            count++;
+        }
+        return count > 0 ? totalDps / count : 0;
+    }
+
+    compileFinalResults() {
+        // Find the active raid result
+        let activeResult = null;
+        const comparison_data = [];
+        
+        for (let [raid_id, result] of this.results_by_raid) {
+            if (result.is_active_raid) {
+                activeResult = result;
+            }
+            
+            // Calculate stats for comparison
+            const dps_over_time = result.damage_log || [];
+            const avg_dps = result.dps;
+            const peak_dps = dps_over_time.length > 0 ? Math.max(...dps_over_time) : result.dps;
+            const time_to_peak = dps_over_time.length > 0 ? 
+                dps_over_time.indexOf(peak_dps) : 0;
+            
+            comparison_data.push({
+                raid_id: raid_id,
+                raid_name: result.raid_name,
+                dps_over_time: dps_over_time,
+                avg_dps: avg_dps,
+                peak_dps: peak_dps,
+                time_to_peak: time_to_peak,
+                players: result.players
+            });
+        }
+
+        // If no active result (shouldn't happen), use first result
+        if (!activeResult && this.results_by_raid.size > 0) {
+            activeResult = this.results_by_raid.values().next().value;
+        }
+
+        // Return result in expected format with comparison data
+        return {
+            ...activeResult,
+            comparison_data: comparison_data,
+            iterations: this.iterations
+        };
     }
 
     start() {
         this.start_time = Date.now();
-        for (let i=0; i<this.workers.length; i++)
+        for (let i = 0; i < this.workers.length; i++) {
             this.startRun(i, i);
+        }
     }
 
     startRun(worker_index, run_index) {
         let run = this.runs[run_index];
-        let config = _.cloneDeep(this.config);
+        let config = _.cloneDeep(run.config);
         config.rng_seed = config.rng_seed + run_index * run.iterations;
 
         this.workers[worker_index].postMessage({
             type: "start",
             config: config,
             iterations: run.iterations,
+            raid_id: run.raid_id,
+            raid_name: run.raid_name,
+            is_active_raid: run.is_active_raid,
         });
         run.started = true;
     }
 
     startNextRun(worker_index) {
-        for (let i=0; i<this.runs.length; i++) {
+        for (let i = 0; i < this.runs.length; i++) {
             if (!this.runs[i].started) {
                 this.startRun(worker_index, i);
                 return true;
             }
         }
-
         return false;
     }
 }

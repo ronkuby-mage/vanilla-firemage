@@ -120,6 +120,12 @@ pub struct LogEntry {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
+pub struct DamageAccumulator {
+    pub time: f64,
+    pub damage: f64,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct PlayerResult {
     pub dmg: u64,
     pub dps: f64,
@@ -130,6 +136,7 @@ pub struct PlayerResult {
 // Result from one run
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct SimulationResult {
+    pub iterations: i32,    
     pub t: f64,
     pub dmg: u64,
     pub dps: f64,
@@ -137,6 +144,7 @@ pub struct SimulationResult {
     pub ignite_dps: f64,
     pub players: Vec<PlayerResult>,
     pub log: Vec<LogEntry>,
+    pub damage_log: Vec<f64>,
 }
 
 // Result from multiple runs
@@ -149,6 +157,7 @@ pub struct SimulationsResult {
     pub ignite_dps: f64,
     pub players: Vec<PlayerResult>,
     pub histogram: HashMap<u32, u32>,
+    pub damage_log: Vec<f64>,
     pub dps_sp: f64,
     pub dps_crit: f64,
     pub dps_hit: f64,
@@ -162,8 +171,7 @@ pub struct SimulationsResult {
 // ---- Helpers ----
 fn sample_duration(tim: &Timing, rng: &mut ChaCha8Rng) -> f64 {
     let normal = Normal::new(tim.duration_mean, tim.duration_sigma).unwrap();
-    normal.sample(rng)
-    //(tim.duration_mean + tim.duration_sigma * Rng::r#gen::<f64>(rng)).max(1.0)
+    normal.sample(rng).max(tim.duration_mean - tim.duration_sigma)
 }
 
 fn first_action_offsets(num_mages: usize, initial_delay: f64, rng: &mut ChaCha8Rng) -> Vec<f64> {
@@ -383,7 +391,27 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
         });
     }
 
+    // build damage over time
+    const DELTA_T: f64 = 0.25;
+    let num_intervals = if !st.log_enabled { ((params.timing.duration_mean - params.timing.duration_sigma) / DELTA_T).ceil() as usize } else { 0 };
+    let mut total_damage = Vec::with_capacity(num_intervals);
+    if !st.log_enabled {
+        let mut cumulative = 0.0;
+        let mut log_index = 0;
+        total_damage.push(0.0);  // starting at t= 0.0
+        for tdx in 0..num_intervals {
+            let time_point = (tdx + 1) as f64 * DELTA_T;
+            // Add all damage that occurred in this interval
+            while log_index < st.damage_log.len() && st.damage_log[log_index].time <= time_point {
+                cumulative += st.damage_log[log_index].damage;
+                log_index += 1;
+            }
+            total_damage.push(cumulative / time_point);
+        }
+    }
+
     let result = SimulationResult {
+        iterations: 1,
         t: dur,
         dmg: (st.totals.total_damage + st.totals.ignite_damage) as u64,
         dps: (st.totals.total_damage + st.totals.ignite_damage) /dur,
@@ -391,6 +419,7 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
         ignite_dps: st.totals.ignite_damage /dur,
         players: players.clone(),
         log: st.log.clone(),
+        damage_log: total_damage.clone(),
     };
 
     result.clone()
@@ -401,15 +430,8 @@ where
     D: Decider,
     F: Fn() -> D,
 {
-    // (1..=n)
-    //     .map(|i| {
-    //         let mut dec = make_decider();            // <-- fresh instance each iteration
-    //         run_single(params, &mut dec, seed, i as u64)
-    //     })
-    //     .collect()
     let mut result: SimulationsResult = SimulationsResult { iterations, ..Default::default() };
-    let bin_size: f64 = 50.0;
-
+    const BIN_SIZE: f64 = 50.0;
     let mut dps_values = vec![Vec::with_capacity(iterations as usize); params.config.num_mages];
 
     for idx in 1..=iterations {
@@ -433,7 +455,7 @@ where
             result.max_dps = sim_result.dps;
         }
 
-        let bin = ((sim_result.dps / bin_size).floor() * bin_size) as u32;
+        let bin = ((sim_result.dps / BIN_SIZE).floor() * BIN_SIZE) as u32;
         if let Some(num) = result.histogram.get_mut(&bin) {
             *num += 1;
         } else {
@@ -445,6 +467,13 @@ where
         } else {
             for (jdx, pr) in sim_result.players.iter().enumerate() {
                 result.players[jdx].dps += pr.dps;
+            }
+        }
+        if idx == 1 {
+            result.damage_log = sim_result.damage_log.clone();
+        } else {
+            for (x, y) in result.damage_log.iter_mut().zip(sim_result.damage_log.iter()) {
+                *x += y;
             }
         }
     }
@@ -460,8 +489,8 @@ where
     result.ignite_dps /= iterations as f64;
     for jdx in 0..result.players.len() {
         result.players[jdx].dps /= iterations as f64;
-        //result.players[jdx].name = params.config.name[jdx].clone();
     }
+    for d in result.damage_log.iter_mut() { *d /= iterations as f64; }
 
     result  
 }

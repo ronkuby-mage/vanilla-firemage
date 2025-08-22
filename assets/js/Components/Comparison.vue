@@ -1,0 +1,296 @@
+<script setup>
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import Chart from 'chart.js/auto';
+import zoomPlugin from 'chartjs-plugin-zoom';
+
+// Register the plugin
+Chart.register(zoomPlugin);
+
+const props = defineProps({
+    result: Object,
+    activeRaid: Object
+});
+
+
+const generateColor = (index) => {
+    // Predefined colors for the first 6 raids
+    const predefinedColors = [
+        'rgb(255, 99, 132)',
+        'rgb(54, 162, 235)', 
+        'rgb(255, 205, 86)',
+        'rgb(75, 192, 192)',
+        'rgb(153, 102, 255)',
+        'rgb(255, 159, 64)'
+    ];
+    
+    if (index < predefinedColors.length) {
+        return predefinedColors[index];
+    }
+    
+    // Generate colors using HSL for better distribution
+    const hue = (index * 137.508) % 360; // Golden angle approximation for good distribution
+    const saturation = 65 + (index % 3) * 10; // Vary saturation slightly (65-85%)
+    const lightness = 45 + (index % 4) * 5;   // Vary lightness slightly (45-60%)
+    
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+};
+
+const chartCanvas = ref(null);
+const showAll = ref(true);
+const selectedRaid = ref(null);
+const dpsMode = ref('total'); // Add this new ref
+let chartInstance = null;
+const dpsModeOptions = computed(() => [
+    { value: 'total', title: 'Total DPS' },
+    { value: 'per-mage', title: 'Per Mage DPS' }
+]);
+
+const hasComparisonData = computed(() => {
+    return props.result?.comparison_data?.length > 0;
+});
+
+const raidOptions = computed(() => {
+    if (!props.result?.comparison_data) return [];
+    return props.result.comparison_data.map(raid => ({
+        value: raid.raid_id,
+        title: raid.raid_name
+    }));
+});
+
+const visibleData = computed(() => {
+    if (!props.result?.comparison_data) return [];
+    if (showAll.value) return props.result.comparison_data;
+    return props.result.comparison_data.filter(r => r.raid_id === selectedRaid.value);
+});
+
+const resetZoom = () => {
+    if (chartInstance) {
+        chartInstance.resetZoom();
+    }
+};
+
+const getFinalDps = (raid) => {
+    if (!raid.dps_over_time || raid.dps_over_time.length === 0) 
+        return raid.avg_dps;
+    return raid.dps_over_time[raid.dps_over_time.length - 1];
+};
+
+const renderChart = () => {
+    if (!chartCanvas.value || !visibleData.value.length) return;
+    
+    const ctx = chartCanvas.value.getContext('2d');
+    const data = visibleData.value;
+    
+    // Generate time labels
+    const maxPoints = Math.max(...data.map(r => r.dps_over_time?.length || 0));
+    const duration = (props.activeRaid?.config?.duration - props.activeRaid?.config?.duration_variance) || 60;
+    const timeInterval = duration / maxPoints;
+
+    // Create labels that match the data points
+    const labels = Array.from({length: maxPoints}, (_, i) => (i * timeInterval).toFixed(1));
+  
+    const datasets = data.map((raid, index) => {
+        let chartData = raid.dps_over_time || [];
+        
+        // If per-mage mode is selected, divide by number of players
+        console.log("and here", raid)
+        console.log('Available properties:', Object.keys(raid));
+        if (dpsMode.value === 'per-mage' && raid?.players) {
+            const playerCount = raid.players.length;
+            chartData = chartData.map(dpsValue => dpsValue / playerCount);
+        }
+        
+        return {
+            label: raid.raid_name,
+            data: chartData,
+            borderColor: generateColor(index),
+            backgroundColor: generateColor(index) + '20',
+            tension: 0.1,
+            fill: false,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            borderWidth: raid.raid_id === props.activeRaid?.id ? 3 : 2
+        };
+    });
+    
+    const chartConfig = {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            backgroundColor: '#000000',
+            color: '#dfdfdf',
+            plugins: {
+                legend: {
+                    position: 'top',
+                    color: '#dfdfdf'
+                },
+                title: {
+                    display: true,
+                    text: dpsMode.value === 'per-mage' ? 'DPS Per Mage Over Time Comparison' : 'DPS Over Time Comparison',
+                    color: '#dfdfdf'
+                },
+                tooltip: {
+                    enabled: false
+                },
+                zoom: {
+                    pan: {
+                        enabled: false,
+                    },
+                    zoom: {
+                        drag: {
+                            enabled: true,
+                            backgroundColor: 'rgba(54,162,235,0.3)'
+                        },
+                        mode: 'x'
+                    }
+                }                
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Time (seconds)',
+                        color: '#dfdfdf'
+                    },
+                    ticks: {
+                        callback: function(value, index, values) {
+                            // Convert tick value to actual time
+                            const timeValue = value * timeInterval;
+                            
+                            // Only show labels that align with our step size
+                            const remainder = 10*(timeValue - Math.floor(timeValue));
+                            const decimals = remainder >= 1 ? 1 : 0;
+                            
+                            return timeValue.toFixed(decimals);
+                        },
+                        color: '#dfdfdf',
+                    },
+                    grid: {
+                       color: '#afafaf',
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: dpsMode.value === 'per-mage' ? 'DPS per Mage' : 'DPS',
+                        color: '#dfdfdf',
+                    },
+                    beginAtZero: false,
+                    ticks: {
+                        color: '#dfdfdf'
+                    },
+                    grid: {
+                       color: '#afafaf',
+                    }
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                intersect: false
+            }
+        }
+    };
+    
+    if (chartInstance) {
+        chartInstance.data = chartConfig.data;
+        chartInstance.options = chartConfig.options;        
+        chartInstance.update();
+    } else {
+        chartInstance = new Chart(ctx, chartConfig);
+    }
+};
+
+watch([showAll, selectedRaid, dpsMode, () => props.result], () => {
+    if (hasComparisonData.value) {
+        nextTick(() => renderChart());
+    }
+});
+
+watch(() => props.result, (newVal) => {
+    if (newVal?.comparison_data?.length > 0 && !selectedRaid.value) {
+        selectedRaid.value = newVal.comparison_data[0].raid_id;
+    }
+});
+
+onMounted(() => {
+    if (hasComparisonData.value) {
+        renderChart();
+    }
+});
+
+onUnmounted(() => {
+    if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+    }
+});
+</script>
+
+<template>
+    <div class="comparison-content" v-if="hasComparisonData">
+        <div class="comparison-controls">
+            <div class="control-group">
+                <!--
+                <label class="checkbox-label">
+                    <input type="checkbox" v-model="showAll">
+                    <span>Show all raids</span>
+                </label>
+                <select-simple 
+                    v-if="!showAll"
+                    v-model="selectedRaid" 
+                    :options="raidOptions"
+                    placeholder="Select raid..."
+                />
+                -->
+
+                <select-simple 
+                    v-model="dpsMode"
+                    :options="dpsModeOptions"
+                    placeholder="DPS Mode..."
+                />
+                <button @click="resetZoom" class="btn btn-secondary small">Reset Zoom</button>
+            </div>
+        </div>
+        
+        <div class="chart-wrapper">
+            <canvas ref="chartCanvas" class="dps-chart"></canvas>
+        </div>
+        <!--
+        <div class="comparison-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Raid</th>
+                        <th>Average DPS</th>
+                        <th>Peak DPS</th>
+                        <th>Time to Peak</th>
+                        <th>Final DPS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="raid in visibleData" 
+                        :key="raid.raid_id"
+                        :class="{ 'active-raid': raid.raid_id === activeRaid?.id }">
+                        <td class="raid-name">{{ raid.raid_name }}</td>
+                        <td>{{ raid.avg_dps.toFixed(1) }}</td>
+                        <td>{{ raid.peak_dps.toFixed(1) }}</td>
+                        <td>{{ raid.time_to_peak.toFixed(1) }}s</td>
+                        <td>{{ getFinalDps(raid).toFixed(1) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        -->
+    </div>
+    <div class="no-data" v-else>
+        <p>No comparison data available.</p>
+        <p>Enable "Include in Comparison" for raids you want to compare.</p>
+    </div>
+</template>

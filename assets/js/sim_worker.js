@@ -7,21 +7,22 @@ onmessage = (event) => {
         init().then(r => {
 
             let result;
-            if (event.data.iterations == 1)
+            if (event.data.iterations == 1) {
                 result = run_simulation(event.data.config);
+            }
             else {
                 result = run_simulations(event.data.config, event.data.iterations);
             }
-
             postMessage({
                 type: "success",
+                raid_id: event.data.raid_id,        // Changed from event.data.config.raid_id
+                raid_name: event.data.raid_name,    // Changed from event.data.config.raid_name  
+                is_active_raid: event.data.is_active_raid,
                 result: result,
             });
         })
         .catch(e => {
             // sim_worker.js (just before postMessage)
-            console.log("[WORKER] bad")
-
             console.warn(e);
         });
     }

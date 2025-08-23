@@ -935,6 +935,8 @@ const updateRaid = () => {
     }
 
     for (let player of raid.players) {
+        if (raceFaction(player.race) != raidModel.value.faction)
+            player.race = convertRace(player.race);
         if (player.custom_items && player.custom_items.length) {
             for (let item of player.custom_items) {
                 let index = customItems.value.findIndex(ci => ci.id == item.id);

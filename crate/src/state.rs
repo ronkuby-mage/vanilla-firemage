@@ -2,7 +2,7 @@
 
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
-use crate::constants as C;
+use crate::constants::{self as C, Buff};
 use crate::constants::{Action, Spell, Constants};
 use crate::orchestration::{DamageAccumulator, LogEntry, LogType, SpellResult};
 
@@ -136,6 +136,67 @@ pub struct State {
     pub damage_log: Vec<DamageAccumulator>,
 }
 
+fn combustion_string(mage_line: &mut MageLane) -> String {
+    if mage_line.comb_left > 0 {
+        return format!("stack: {}  remain: {}", mage_line.comb_stack, mage_line.comb_left);
+    } else if mage_line.comb_cooldown <= 0.0 {
+        return format!("off cooldown")
+    }
+    format!("cooldown: {:.2}", mage_line.comb_cooldown)
+}
+
+fn buff_string(mage_lane: &mut MageLane) -> String {
+    let mut buffs: String = "".to_owned();
+    if mage_lane.buff_timer[Buff::Sapp as usize] > 0.0 {
+        buffs.push_str("Sapp");
+    } else {
+        buffs.push_str("    ");
+    }
+    if mage_lane.buff_timer[Buff::Toep as usize] > 0.0 {
+        buffs.push_str("Toep");
+    } else {
+        buffs.push_str("    ");
+    }
+    if mage_lane.buff_timer[Buff::Zhc as usize] > 0.0 {
+        buffs.push_str("ZHC");
+    } else {
+        buffs.push_str("   ");
+    }
+    if mage_lane.buff_timer[Buff::Mqg as usize] > 0.0 {
+        buffs.push_str("MQG");
+    } else {
+        buffs.push_str("   ");
+    }
+    if mage_lane.pi_timer.iter().cloned().reduce(f64::max).unwrap() > 0.0 {
+        buffs.push_str("PI");
+    } else {
+        buffs.push_str("  ");
+    }
+    buffs
+}
+
+fn debuff_string(boss: &mut Boss, dragonling_active: bool) -> String {
+    let mut debuffs: String = "".to_owned();
+    
+    if boss.scorch_timer > 0.0 {
+        debuffs.push_str(format!("scorch:{}({:.2}) ", boss.scorch_count, boss.scorch_timer).as_str());
+    } else {
+        debuffs.push_str("scorch:0 ");
+    }
+    if boss.ignite_timer > 0.0 {
+        debuffs.push_str(format!("ignite:{}({:.2})[{:.0}|{:.2}] ", boss.ignite_count, boss.ignite_timer, boss.ignite_value, boss.ignite_multiplier).as_str());
+    } else {
+        debuffs.push_str("ignite:0 ");
+    }
+    if dragonling_active {
+        debuffs.push_str("dragonling ");
+    }
+    if boss.spell_vulnerability > 0.0 {
+        debuffs.push_str(format!("nightfall:{:.2}", boss.spell_vulnerability).as_str());
+    }
+    debuffs
+}
+
 impl State {
     pub fn new(duration: f64, num_mages: usize) -> Self {
         Self {
@@ -151,47 +212,66 @@ impl State {
     }
 
     pub fn log_cast(&mut self, log_type: LogType, unit_id: i32, spell: Action) {
+        let l = &mut self.lanes[unit_id as usize];
+        let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
+        let b = &mut self.boss;
         self.log.push(LogEntry {
             log_type: log_type,
             text: format!("s[{}]", spell),
             unit_name: self.meta.name[unit_id as usize].clone(),
             t: self.global.running_time,
-            dps: if self.global.running_time > 0.0 { self.lanes[unit_id as usize].damage / self.global.running_time } else { 0.0 },
+            dps: 0.0,
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
             ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             value: 0.0,
             value2: 0.0,
             spell_result: SpellResult::None,
+            combustion: combustion_string(l),
+            buffs: buff_string(l),
+            debuffs: debuff_string(b, dragonling_active),
         });
     }
 
-    pub fn log_tick(&mut self, value: f64) {
+    pub fn log_tick(&mut self, value: f64, partial: f64) {
+        let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
+        let b = &mut self.boss;
         self.log.push(LogEntry {
             log_type: LogType::IgniteTick,
-            text: format!("s[ignite] -> t[{}]", value),
+            text: format!("a[Ignite] -> t[{:.0}]", value),
             unit_name: format!(""),
             t: self.global.running_time,
-            dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
+            dps: 0.0,
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
             ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             value: value,
-            value2: 0.0,
+            value2: (1.0 - partial)*value,
             spell_result: SpellResult::Hit,
+            combustion: String::new(),
+            buffs: String::new(),
+            debuffs: debuff_string(b, dragonling_active),
         });
     }
 
-    pub fn log_spell_impact(&mut self, unit_id: i32, spell: Spell, value: f64, result: SpellResult) {
+    pub fn log_spell_impact(&mut self, unit_id: i32, spell: Spell, value: f64, partial: f64, result: SpellResult) {
+
+        let l = &mut self.lanes[unit_id as usize];
+        let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
+        let b = &mut self.boss;
         self.log.push(LogEntry {
+
             log_type: LogType::SpellImpact,
-            text: format!("s[{}] -> t[{}]", spell, value),
+            text: format!("s[{}] -> t[{:.0}]", spell, value),
             unit_name: self.meta.name[unit_id as usize].clone(),
             t: self.global.running_time,
-            dps: if self.global.running_time > 0.0 { self.lanes[unit_id as usize].damage / self.global.running_time } else { 0.0 },
+            dps: 0.0,
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
             ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
             value: value,
-            value2: 0.0,
+            value2: (1.0 - partial)*value,
             spell_result: result,
+            combustion: combustion_string(l),
+            buffs: buff_string(l),
+            debuffs: debuff_string(b, dragonling_active),
         });
     }
 
@@ -429,7 +509,7 @@ impl State {
         // use the stashed values instead of reading through `l` where possible
         if rng.r#gen::<f64>() >= lane_hit {
             if self.log_enabled {
-                self.log_spell_impact(lane as i32, spell_string, 0.0, SpellResult::Miss);
+                self.log_spell_impact(lane as i32, spell_string, 0.0, 0.0, SpellResult::Miss);
             }
             return;
         }
@@ -448,9 +528,10 @@ impl State {
 
         let base_roll: f64 = rng.r#gen();
         let mut spell_damage = k.spell_base[spell_type] + base_roll*k.spell_range[spell_type] + k.sp_multiplier[spell_type]*(l.spell_power + buff_damage);
+        let mut partial: f64 = 1.0;
         if k.is_fire[spell_type] {
             let r: f64 = rng.r#gen();
-            let partial = if r < C::RES_THRESH[1] { C::RES_AMOUNT[0] } else if r < C::RES_THRESH[2] { C::RES_AMOUNT[1] } else if r < C::RES_THRESH[3] { C::RES_AMOUNT[2] } else { C::RES_AMOUNT[3] };
+            partial = if r < C::RES_THRESH[1] { C::RES_AMOUNT[0] } else if r < C::RES_THRESH[2] { C::RES_AMOUNT[1] } else if r < C::RES_THRESH[3] { C::RES_AMOUNT[2] } else { C::RES_AMOUNT[3] };
             spell_damage *= partial;
         }
 
@@ -471,8 +552,9 @@ impl State {
         //if is_target { self.totals.player_damage += spell_damage; }
 
         let is_fire = k.is_fire[spell_type];
-        let is_scorch = k.is_scorch[spell_type];
-        let comb_bonus = if is_fire && !is_scorch && l.comb_left > 0 { C::PER_COMBUSTION * (l.comb_stack as f64) } else { 0.0 };
+        // getting rid of buffer bonus for now
+        //let comb_bonus = if is_fire && !is_scorch && l.comb_left > 0 { C::PER_COMBUSTION * (l.comb_stack as f64) } else { 0.0 };
+        let comb_bonus = if is_fire && l.comb_left > 0 { C::PER_COMBUSTION * (l.comb_stack as f64) } else { 0.0 };
         let crit_chance = (l.crit_chance + comb_bonus + k.incin_bonus[spell_type]).clamp(0.0, 1.0);
         let is_crit = rng.r#gen::<f64>() < crit_chance;
 
@@ -555,10 +637,10 @@ impl State {
 
         if self.log_enabled {
             if is_crit {
-                self.log_spell_impact(lane as i32, spell_string, spell_damage, SpellResult::Crit);
+                self.log_spell_impact(lane as i32, spell_string, spell_damage, partial, SpellResult::Crit);
                 //println!("  {:6.2} mage {} spell {} CRIT for {}", self.global.running_time, lane, spell_string, spell_damage)
             } else {
-                self.log_spell_impact(lane as i32, spell_string, spell_damage, SpellResult::Hit);
+                self.log_spell_impact(lane as i32, spell_string, spell_damage, partial, SpellResult::Hit);
                 //println!("  {:6.2} mage {} spell {} hit  for {}", self.global.running_time, lane, spell_string, spell_damage)
             }
         } else {
@@ -587,11 +669,12 @@ impl State {
         if self.boss.scorch_timer > 0.0 { mult *= 1.0 + C::SCORCH_MULTIPLIER*(self.boss.scorch_count as f64); }
         if self.boss.spell_vulnerability > 0.0 { mult *= 1.0 + C::NIGHTFALL_VULN; }
         let r: f64 = rng.r#gen();
-        mult *= if r < C::RES_THRESH[1] { C::RES_AMOUNT[0] } else if r < C::RES_THRESH[2] { C::RES_AMOUNT[1] } else if r < C::RES_THRESH[3] { C::RES_AMOUNT[2] } else { C::RES_AMOUNT[3] };
+        let partial: f64 = if r < C::RES_THRESH[1] { C::RES_AMOUNT[0] } else if r < C::RES_THRESH[2] { C::RES_AMOUNT[1] } else if r < C::RES_THRESH[3] { C::RES_AMOUNT[2] } else { C::RES_AMOUNT[3] };
+        mult *= partial;
         let ignite_damage = mult * self.boss.ignite_value;
         self.totals.ignite_damage += ignite_damage;
         if self.log_enabled {
-            self.log_tick(ignite_damage);
+            self.log_tick(ignite_damage, partial);
         } else {
             self.damage_log.push(DamageAccumulator { time: self.global.running_time, damage: ignite_damage});
         }

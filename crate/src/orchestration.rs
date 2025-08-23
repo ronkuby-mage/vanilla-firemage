@@ -117,6 +117,9 @@ pub struct LogEntry {
     pub value: f64,
     pub value2: f64,
     pub spell_result: SpellResult,
+    pub combustion: String,
+    pub buffs: String,
+    pub debuffs: String,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]

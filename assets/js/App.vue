@@ -527,64 +527,54 @@ const displayStats = (player) => {
 
     if (player.buffs.arcane_intellect)
         stats.int+= 31;
-
-    if (player.imp_mark_of_the_wild) {
+    if (player.buffs.imp_mark_of_the_wild) {
         x = 12;
-        x = _.round(x * 1.35);
+        x = x * 1.35;
         stats.int += x;
     }
-
-    if (player.buffs.elixir_greater_firepower)
-        stats.sp_fire+= 40;
-    if (player.buffs.elixir_greater_arcane)
-        stats.sp+= 35;
-
-    if (player.buffs.very_berry_cream)
-        stats.sp+= 23;
-
-    if (player.buffs.runn_tum_tuber)
-        stats.int+= 10;
-
-    if (player.buffs.flask_of_supreme_power)
-        stats.sp+= 150;
-
-    if (player.buffs.blessed_weapon_oil)
-        stats.sp+= 60;
-    else if (player.buffs.brilliant_weapon_oil) {
-        stats.sp+= 36;
-        stats.crit+= 1;
-    }
-
-    stats.crit += 2*player.buffs.atiesh_mage;
-    stats.sp += 33*player.buffs.atiesh_warlock;
-    if (player.buffs.moonkin_aura)
-        stats.crit += 3;
-
     if (player.buffs.gift_of_stormwind)
         stats.int+= 30;
     if (player.buffs.infallible_mind)
         stats.int+= 25;
-    if (player.buffs.songflower) {
-        stats.crit+= 5;
+    if (player.buffs.runn_tum_tuber)
+        stats.int+= 10;
+    if (player.buffs.songflower)
         stats.int+= 15;
-    }
-    if (player.buffs.rallying_cry)
-        stats.crit+= 10;
-    if (player.buffs.dire_maul_tribute)
-        stats.crit+=3;
-
-    if (player.buffs.spirit_of_zandalar) {
+    if (player.buffs.blessing_of_kings && faction == "Alliance")
+        stats.int*= 1.1;
+    if (player.buffs.spirit_of_zandalar)
         stats.int*= 1.15;
-    }
     if (player.race == "Gnome")
         stats.int*= 1.05;
-    if (player.buffs.blessing_of_kings && faction == "Alliance") {
-        stats.int*= 1.1;
-    }
+
+    if (player.buffs.elixir_greater_arcane)
+        stats.sp+= 35;
+    if (player.buffs.elixir_greater_firepower)
+        stats.sp_fire+= 40;
+    if (player.buffs.flask_of_supreme_power)
+        stats.sp+= 150;
+    if (player.buffs.blessed_weapon_oil)
+        stats.sp+= 60;
+    else if (player.buffs.brilliant_wizard_oil)
+        stats.sp+= 36;
+    if (player.buffs.very_berry_cream)
+        stats.sp+= 23;
+    stats.sp += 33*player.buffs.atiesh_warlock;
+
+    if (player.buffs.brilliant_wizard_oil)
+        stats.crit+= 1;
+    if (player.buffs.rallying_cry)
+        stats.crit+= 10;
+    if (player.buffs.songflower)
+        stats.crit+= 5;
+    if (player.buffs.dire_maul_tribute)
+        stats.crit+=3;
+    stats.crit += stats.int / 59.5;
+    stats.crit += 2*player.buffs.atiesh_mage;
+    if (player.buffs.moonkin_aura)
+        stats.crit += 3;
 
     stats.int = Math.round(stats.int);
-
-    stats.crit+= stats.int / 59.5;
     stats.sp += stats.sp_fire;
 
     return stats;
@@ -738,7 +728,7 @@ const runMultiple = () => {
     
     // Multiple iterations run all raids with in_comparison checked
     for (let raid of raids.value) {
-        if (raid.config.in_comparison) {
+        if (raid.config.in_comparison || raid.id == activeRaid.value.id) {
             let config = _.cloneDeep(simConfig(raid));
             config.raid_id = raid.id;
             config.raid_name = raid.name;
@@ -2234,6 +2224,12 @@ watch(() => result.value, () => {
 watch(() => customItems.value, (value) => {
     saveCustomItems(value);
 });
+watch(() => activeRaid.value.faction, () => {
+    for (let player of activeRaid.value.players) {
+        if (raceFaction(player.race) != activeRaid.value.faction)
+            player.race = convertRace(player.race);
+    }
+});
 
 /*
  * Events
@@ -3134,6 +3130,9 @@ onMounted(() => {
                                         <th>Type</th>
                                         <th>Text</th>
                                         <th>Result</th>
+                                        <th>Combustion</th>
+                                        <th>Buffs</th>
+                                        <th>Debuffs</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -3157,6 +3156,15 @@ onMounted(() => {
                                             <span v-if="log.spell_result == 'Miss'">
                                                 Miss
                                             </span>
+                                        </td>
+                                        <td>
+                                            {{ log.combustion }}
+                                        </td>
+                                        <td>
+                                            {{ log.buffs }}
+                                        </td>
+                                        <td>
+                                            {{ log.debuffs }}
                                         </td>
                                     </tr>
                                 </tbody>

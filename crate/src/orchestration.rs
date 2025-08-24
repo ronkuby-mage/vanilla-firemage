@@ -323,7 +323,7 @@ pub fn display_party_stats(st: &State, intellect: Option<&[f64]>) {
             .unwrap_or_else(|| "-".to_string());
 
         log::debug!(
-            "Mage {:>2}: SP={:>4.0}  Hit={:>5.2}%  Crit={:>5.2}%  Int={}  Ready=[{}]",
+            "Mage {:>2}: SP={:>4.0}  Hit={:>5.2}%  Crit={:>5.2}%  Int={} Ready=[{}]",
             i,
             lane.spell_power,
             100.0 * lane.hit_chance,

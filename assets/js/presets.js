@@ -96,7 +96,7 @@ const defaultApls = () => {
     item.condition.conditions.push(cond);
     cond = apl.condition();
     cond.condition_type = apl.condition_type.CMP;
-    cond.op = apl.condition_op.EQ;    
+    cond.op = apl.condition_op.LT;    
     cond.values = [apl.value(), apl.value()];
     cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
     cond.values[0].vint = common.auras.FIRE_VULNERABILITY;
@@ -160,7 +160,7 @@ const defaultApls = () => {
     item.condition.conditions.push(cond);
     cond = apl.condition();
     cond.condition_type = apl.condition_type.CMP;
-    cond.op = apl.condition_op.EQ;    
+    cond.op = apl.condition_op.LT;    
     cond.values = [apl.value(), apl.value()];
     cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
     cond.values[0].vint = common.auras.FIRE_VULNERABILITY;
@@ -242,7 +242,7 @@ const defaultApls = () => {
     item.condition.conditions.push(cond);
     cond = apl.condition();
     cond.condition_type = apl.condition_type.CMP;
-    cond.op = apl.condition_op.EQ;    
+    cond.op = apl.condition_op.LT;    
     cond.values = [apl.value(), apl.value()];
     cond.values[0].value_type = apl.value_type.TARGET_AURA_DURATION;
     cond.values[0].vint = common.auras.FIRE_VULNERABILITY;

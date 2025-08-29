@@ -802,12 +802,15 @@ body {
             > .dps-overview {
                 @mixin clearfix;
 
-                /* Update grid to have explicit rows */
-                display: grid;
-                grid-template-columns: 250px auto auto 1fr;
-                grid-template-rows: auto auto; /* Two rows: main content, then histogram */
-                gap: 40px;
-                align-items: start;
+                /* Update grid to have minimum sizes instead of auto */
+                    display: grid;
+                    grid-template-columns: 250px minmax(220px, auto) minmax(220px, auto) minmax(300px, 1fr);
+                    grid-template-rows: auto auto;
+                    gap: 40px;
+                    align-items: start;
+                    min-width: 1170px; /* Ensure total minimum width */
+                    overflow-x: auto; /* Allow horizontal scrolling when needed */
+
 
                 .progress-wrapper {
                     position: relative;
@@ -892,9 +895,11 @@ body {
                     grid-column: 2;
                     grid-row: 1;
                     position: relative;
+                    min-width: 220px; /* Ensure minimum width for progress circle + text */
 
                     .progress-circle svg {
-                        width: 200px;
+                        width: min(200px, 100%); /* Allow svg to scale down if needed */
+                        min-width: 180px; /* But not below this minimum */
                     }
 
                     .center {
@@ -908,10 +913,11 @@ body {
                 > .ignite {
                     grid-column: 3;
                     grid-row: 1;
-                    position: relative;
+                    min-width: 220px; /* Ensure minimum width for progress circle + text */
 
                     .progress-circle svg {
-                        width: 200px;
+                    width: min(200px, 100%); /* Allow svg to scale down if needed */
+                    min-width: 180px; /* But not below this minimum */
                     }
 
                     .center {
@@ -926,18 +932,20 @@ body {
                     grid-column: 4;
                     grid-row: 1;
                     position: relative;
-                    width: auto; /* Match the width of other progress elements */
+                    width: auto;
+                    min-width: 440px; /* Minimum width for stats grid */
 
                     .stats-grid {
                         display: grid;
-                        grid-template-columns: repeat(3, 1fr);
+                        grid-template-columns: repeat(3, minmax(80px, 1fr)); /* Minimum column width */
                         grid-template-rows: repeat(2, 1fr);
                         gap: 15px;
                         padding: 20px;
                         background: var(--color-bg1);
                         border: 1px solid var(--color-stroke-light);
                         border-radius: 4px;
-                        height: 120px; /* Adjust as needed */
+                        height: 120px;
+                        min-width: 260px; /* Ensure grid doesn't compress text */
                     }
 
                     .stat-item {
@@ -945,6 +953,7 @@ body {
                         display: flex;
                         flex-direction: column;
                         justify-content: center;
+                        min-width: 60px; /* Prevent stat items from getting too narrow */
                         
                         .title {
                             color: var(--color-primary-light);
@@ -954,6 +963,7 @@ body {
                             font-size: 12px;
                             margin-bottom: 4px;
                             line-height: 1.1;
+                            word-break: keep-all; /* Prevent title text wrapping */
                         }
 
                         .value {
@@ -961,9 +971,11 @@ body {
                             font-size: 25px;
                             color: #fff;
                             line-height: 1;
+                            white-space: nowrap; /* Prevent value wrapping */
                         }
                     }
                 }
+
 
                 > .info {
                     grid-column: 5;
@@ -993,7 +1005,9 @@ body {
                     margin-top: 10px;
                     padding-top: 10px;
                     border-top: 1px solid var(--color-stroke-light);
-                    width: 100%; /* Ensure it takes full width of its grid area */
+                    width: auto;
+                    min-width: 960px; /* Minimum width for stats grid */
+
                 }
 
                 /* Also add this rule in case you're using histogram-wrapper elsewhere */

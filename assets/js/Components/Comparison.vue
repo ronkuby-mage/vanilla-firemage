@@ -39,6 +39,7 @@ const chartCanvas = ref(null);
 const showAll = ref(true);
 const selectedRaid = ref(null);
 const dpsMode = ref('total'); // Add this new ref
+const runningAverage = ref(true); // Default enabled
 let chartInstance = null;
 const dpsModeOptions = computed(() => [
     { value: 'total', title: 'Total DPS' },
@@ -75,6 +76,31 @@ const getFinalDps = (raid) => {
     return raid.dps_over_time[raid.dps_over_time.length - 1];
 };
 
+// Function to apply running average filter
+const applyRunningAverage = (data, timeInterval, windowSeconds = 3) => {
+    if (!runningAverage.value || data.length === 0) return data;
+    
+    const windowSize = Math.max(1, Math.round(windowSeconds / timeInterval));
+    const smoothedData = [];
+    
+    for (let i = 0; i < data.length; i++) {
+        const start = Math.max(0, i - Math.floor(windowSize / 2));
+        const end = Math.min(data.length, i + Math.floor(windowSize / 2) + 1);
+        
+        let sum = 0;
+        let count = 0;
+        
+        for (let j = start; j < end; j++) {
+            sum += data[j];
+            count++;
+        }
+        
+        smoothedData[i] = sum / count;
+    }
+    
+    return smoothedData;
+};
+
 const renderChart = () => {
     if (!chartCanvas.value || !visibleData.value.length) return;
     
@@ -98,6 +124,9 @@ const renderChart = () => {
             const playerCount = raid.players.length;
             chartData = chartData.map(dpsValue => dpsValue / playerCount);
         }
+
+        // Apply running average filter if enabled
+        chartData = applyRunningAverage(chartData, timeInterval);        
         
         return {
             label: raid.raid_name,
@@ -205,7 +234,7 @@ const renderChart = () => {
     }
 };
 
-watch([showAll, selectedRaid, dpsMode, () => props.result], () => {
+watch([showAll, selectedRaid, dpsMode, runningAverage, () => props.result], () => {
     if (hasComparisonData.value) {
         nextTick(() => renderChart());
     }
@@ -253,6 +282,10 @@ onUnmounted(() => {
                     :options="dpsModeOptions"
                     placeholder="DPS Mode..."
                 />
+                <label class="checkbox-label">
+                    <input type="checkbox" v-model="runningAverage">
+                    <span>Running Average (3s)</span>
+                </label>                
                 <button @click="resetZoom" class="btn btn-secondary small">Reset Zoom</button>
             </div>
         </div>

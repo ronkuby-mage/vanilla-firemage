@@ -19,14 +19,36 @@ body {
     position: relative;
     height: 100vh;
     display: grid;
-    grid-template-columns: 300px 1fr;
+    grid-template-columns: 350px 1fr;
 
     > .left {
         height: 100vh;
         display: grid;
         grid-auto-columns: 100%;
-        grid-template-rows: 80px 1fr 150px;
+        grid-template-rows: min-content min-content 1fr 150px;
         background: var(--color-bg2);
+
+        > .template-raids {
+            position: relative;
+            padding: 30px 30px 20px;
+
+
+            > .create {
+                text-align: center;
+
+                > div {
+                    &:nth-child(2) {
+                        margin-top: 10px;
+                    }
+                }
+
+                .btn.large {
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                    font-weight: 700;
+                }
+            }            
+        }
 
         > .raid {
             position: relative;
@@ -36,25 +58,29 @@ body {
                 padding: 20px 30px;
                 user-select: none;
                 cursor: pointer;
+                display: flex; /* Use flexbox for proper alignment */
+                align-items: center; /* Vertically center items */
+                gap: 15px; /* Space between items */
 
                 .faction {
                     border-radius: 50%;
                     overflow: hidden;
                     width: 40px;
+                    flex-shrink: 0; /* Prevent icon from shrinking */
                 }
 
                 .name {
-                    display: inline-block;
-                    vertical-align: middle;
-                    margin: 0 5px 0 15px;
                     font-size: 20px;
                     font-weight: 600;
-                    max-width: calc(100% - 50px);
-                    @mixin truncate;
+                    flex: 1; /* Take remaining space */
+                    min-width: 0; /* Allow text to truncate */
+                    white-space: nowrap; /* Prevent text wrapping */
+                    overflow: hidden; /* Hide overflow */
+                    text-overflow: ellipsis; /* Add ellipsis for long text */
                 }
 
                 .caret {
-                    margin-top: 2px;
+                    flex-shrink: 0; /* Prevent caret from shrinking */
                 }
             }
 

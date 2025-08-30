@@ -9,6 +9,7 @@ import aplData from "./apl";
 import { mage as talentTree } from "./talents";
 import _ from "lodash";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
+import { generateRaidsFromTemplate } from "./template";
 
 /*
  * Helpers
@@ -311,29 +312,29 @@ const defaultConfig = () => {
 const defaultBuffs = () => {
     return {
         // RAID
-        arcane_intellect: false,
-        imp_mark_of_the_wild: false,
-        blessing_of_kings: false,
+        arcane_intellect: true,
+        imp_mark_of_the_wild: true,
+        blessing_of_kings: true,
 
         // WORLD
-        songflower: false,
-        rallying_cry: false,
-        dire_maul_tribute: false,
-        spirit_of_zandalar: false,
+        songflower: true,
+        rallying_cry: true,
+        dire_maul_tribute: true,
+        spirit_of_zandalar: true,
         // World snaphot
-        dmf_dmg: false,
+        dmf_dmg: true,
         soul_revival: false,
         traces_of_silithyst: false,
 
         // CONSUMES
-        flask_of_supreme_power: false,
-        infallible_mind: false,
+        flask_of_supreme_power: true,
+        infallible_mind: true,
         gift_of_stormwind: false,
-        elixir_greater_arcane: false,
-        elixir_greater_firepower: false,
-        brilliant_wizard_oil: false,       // "none" | "brilliant" | "blessed"
+        elixir_greater_arcane: true,
+        elixir_greater_firepower: true,
+        brilliant_wizard_oil: true,       // "none" | "brilliant" | "blessed"
         blessed_wizard_oil: false,       // "none" | "brilliant" | "blessed"
-        very_berry_cream: false,
+        very_berry_cream: true,
         runn_tum_tuber: false,             // "none" | "runn_tum_tuber" | ...
 
         // AURAS (per-player toggles if your UI exposes them)
@@ -342,6 +343,7 @@ const defaultBuffs = () => {
         moonkin_aura: false,
     };
 };
+
 const defaultItems = () => {
     return {
         udc: false,
@@ -365,13 +367,13 @@ const defaultPlayer = () => {
         stats: baseStats("Undead"),
         loadout: baseLoadout(),
         buffs: defaultBuffs(),
-        pi_count: 0,
+        pi_count: 1,
         is_target: true,
         is_vary: true,
         // new: one nested buffs object, booleans/strings only
         talents: common.parseWowheadTalents("23000502-5052122123033151-003"),
         items: [],
-        apl: presets.apls[0],
+        apl: presets.apls?.[0] || aplData.getDefaultApl(),
         bonus_stats: common.stats(),        
     };
 };
@@ -428,16 +430,15 @@ const loadRaids = () => {
                     if (!player.hasOwnProperty(key))
                         player[key] = defPlayer[key];
                 }
-                // Reload preset apl - FIX THIS PART
                 if (player.apl && player.apl.id) {
                     if (aplData.isPreset(player.apl.id)) {
                         let ap = presets.apls.find(a => a.id == player.apl.id);
                         if (ap)
-                            player.apl = ap;
+                            player.apl = _.cloneDeep(ap);
                     }
                 } else {
                     // If APL is missing or invalid, set to default
-                    player.apl = presets.apls[0];
+                    player.apl = _.cloneDeep(presets.apls[0]);
                 }
             }
             for (let key in defRaid) {
@@ -502,6 +503,179 @@ const saveSettings = () => {
     window.localStorage.setItem("settings", JSON.stringify(settings));
 };
 const settings = reactive(loadSettings());
+
+/* Raid Templates */
+
+const templateRaidEdit = ref();
+const templateRaidModel = ref({
+    templateType: 'preset', // 'preset' or 'existing'
+    numMages: 3,
+    gearLevel: null,
+    sourceRaid: null,
+    faction: 'Horde',
+    prefix: '',
+    encounterDuration: 60
+});
+
+const templateRaidNumMageOptions = computed(() => [
+    { value: 2, title: '2 Mages' },
+    { value: 3, title: '3 Mages' },
+    { value: 4, title: '4 Mages' },
+    { value: 5, title: '5 Mages' }
+]);
+
+const templateRaidGearOptions = computed(() => {
+    return presets.loadouts.map(l => ({ value: l.name, title: l.name }));
+});
+
+const templateRaidSourceOptions = computed(() => {
+    return raids.value.map(r => ({ value: r.id, title: r.name }));
+});
+
+const createRaidsFromTemplateOpen = () => {
+    templateRaidModel.value = {
+        templateType: 'preset',
+        numMages: 3,
+        gearLevel: presets.loadouts.length > 0 ? presets.loadouts[0].name : null,
+        sourceRaid: raids.value.length > 0 ? raids.value[0].id : null,
+        faction: 'Horde',
+        prefix: '',
+        encounterDuration: 60        
+    };
+    templateRaidEdit.value.open(true);
+};
+
+const updateTemplateRaids = () => {
+    // Validate encounter duration
+    const duration = templateRaidModel.value.encounterDuration;
+    if (!duration || duration < 10 || duration > 300) {
+        alert("Encounter duration must be between 10 and 300 seconds");
+        return;
+    }
+    
+    templateRaidEdit.value.close();
+    
+    if (templateRaidModel.value.templateType === 'preset') {
+        createRaidsFromPreset();
+    } else {
+        createRaidsFromExisting();
+    }
+};
+
+const createRaidsFromPreset = () => {
+    const numMages = templateRaidModel.value.numMages;
+    const gearLevel = templateRaidModel.value.gearLevel;
+    const prefix = templateRaidModel.value.prefix;
+    const faction = templateRaidModel.value.faction;
+    const encounterDuration = templateRaidModel.value.encounterDuration;    
+    
+    if (!gearLevel) {
+        alert("Please select a gear level");
+        return;
+    }
+    
+    // Find the preset loadout
+    const presetLoadout = presets.loadouts.find(l => l.name === gearLevel);
+    if (!presetLoadout) {
+        alert("Could not find preset loadout");
+        return;
+    }
+   
+    const raid = defaultRaid();
+
+    raid.name = `${prefix}`;
+    raid.faction = faction;
+    raid.config.duration = encounterDuration;
+    raid.players = [];
+    
+    // Create the specified number of mage players
+    let crits = [];
+    for (let i = 1; i <= numMages; i++) {
+        const player = defaultPlayer();
+        player.name = `Mage${i}`;
+        player.race = faction === 'Alliance' ? 'Gnome' : 'Undead';
+        player.loadout = _.cloneDeep(presetLoadout.loadout);
+        if (gearLevel.includes('Era')) {
+            player.buffs.atiesh_mage = numMages - 1;
+            player.buffs.atiesh_warlock = Math.min(5 - numMages, 2);
+        }
+        stats = displayStats(player);
+        crits.push(stats.crit);
+        player.id = common.uuid();
+        raid.players.push(player);
+    }
+    const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
+
+    // Generate variations
+    const newRaids = generateRaidsFromTemplate(baseRaid, {
+        isPreset: true,
+        namePrefix: prefix,
+        encounterDuration: encounterDuration,
+        averageCrit: averageCrit,
+        naxxTrinketAvailability: !gearLevel.includes('Phase 5')
+    });
+    
+    raids.value.push(...newRaids);
+    raids.value = _.sortBy(raids.value, "name");
+    saveRaids(raids.value);
+    
+    notify({
+        title: "Success!",
+        text: `Created ${newRaids.length} raids with ${numMages} mages each`,
+        timer: 3000,
+        class: "success"
+    });
+};
+
+const createRaidsFromExisting = () => {
+    const sourceRaidId = templateRaidModel.value.sourceRaid;
+    const encounterDuration = templateRaidModel.value.encounterDuration; 
+
+    if (!sourceRaidId) {
+        alert("Please select a source raid");
+        return;
+    }
+    
+    const sourceRaid = raids.value.find(r => r.id === sourceRaidId);
+    if (!sourceRaid) {
+        alert("Could not find source raid");
+        return;
+    }
+  
+    const newRaid = _.cloneDeep(sourceRaid);
+    newRaid.id = common.uuid();
+    newRaid.name = `${sourceRaid.name}`;
+    newRaid.faction = sourceRaid.faction;
+    newRaid.config.duration = encounterDuration;    
+    
+    // Give players unique ids and calculate average crit
+    let crits = [];
+    newRaid.players.forEach(player => {
+        stats = displayStats(player);
+        crits.push(stats.crit);
+        player.id = common.uuid();
+    });
+    const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
+
+    // Generate variations (e.g., opposite faction, different durations, etc.)
+    const newRaids = generateRaidsFromTemplate(sourceRaid, {
+        isPreset: false,
+        namePrefix: sourceRaid.name,
+        encounterDuration: encounterDuration,
+        averageCrit: averageCrit
+    });    
+    
+    raids.value.push(...newRaids);
+    raids.value = _.sortBy(raids.value, "name");
+    saveRaids(raids.value);
+    
+    notify({
+        title: "Success!",
+        text: `Created ${newRaids.length} candidate rotations for ${sourceRaid.name}`,
+        timer: 3000,
+        class: "success"
+    });
+};
 
 /*
  * Run simulation
@@ -2265,6 +2439,10 @@ onMounted(() => {
     <div class="app">
         <div id="main">
             <div class="left">
+                <div class="template-raids">
+                    <div class="create"><button class="btn btn-primary block large" @click="createRaidsFromTemplateOpen">Create Raids from Template</button></div>
+                </div>
+
                 <div class="raid">
                     <div class="current-raid" @click="raidSelectOpen = !raidSelectOpen">
                         <template v-if="activeRaid">
@@ -2383,7 +2561,7 @@ onMounted(() => {
                         Import
                     </button>
                     <div class="github">
-                        <a href="https://github.com/Cheesehyvel/magesim-vanilla" target="_blank">
+                        <a href="https://github.com/ronkuby-mage/vanilla-firemage" target="_blank">
                             <img src="/img/github-mark.svg" alt="Github">
                         </a>
                     </div>
@@ -3069,7 +3247,7 @@ onMounted(() => {
                                         <div class="value">
                                             <animate-number :end="statWeight('hit') || 0" :decimals="1" />
                                         </div>
-                                        <tooltip position="topright">Invalid if player hit is 98% or 99%</tooltip>
+                                        <tooltip position="bottom">Invalid if player hit is 98% or 99%</tooltip>
                                     </div>
                                     <div class="stat-item">
                                         <div class="title">DPS per SP</div>
@@ -3299,7 +3477,7 @@ onMounted(() => {
                     Though it can become cumbersome when you want to switch items.
                 </p>
                 <p>
-                    <a href="https://github.com/Cheesehyvel/magesim-vanilla/issues/new?title=Missing%20item:%20" target="_blank">
+                    <a href="https://github.com/ronkuby-mage/vanilla-firemage/issues/new?title=Missing%20item:%20" target="_blank">
                         Create an issue
                     </a><br>
                     If you think this item should be part of the list, you can tell me about it.
@@ -3384,5 +3562,82 @@ onMounted(() => {
                 </div>
             </div>
         </spotlight>
+
+        <spotlight ref="templateRaidEdit" class="small" v-slot="{ close }">
+            <div class="default template-raid-edit">
+                <div class="form-title">Create raids from template</div>
+                
+                <div class="form-item">
+                    <label>Template</label>
+                    <select-simple 
+                        v-model="templateRaidModel.templateType" 
+                        :options="[
+                            { value: 'preset', title: 'From preset' },
+                            { value: 'existing', title: 'From existing raid' }
+                        ]" 
+                    />
+                </div>
+
+                <template v-if="templateRaidModel.templateType === 'preset'">
+                    <div class="form-item">
+                        <label>Prefix (optional)</label>
+                        <input 
+                            type="text" 
+                            v-model="templateRaidModel.prefix" 
+                            placeholder="e.g., MQG-test"
+                        />
+                    </div>                    
+                    <div class="form-item">
+                        <label>Number of mages</label>
+                        <select-simple 
+                            v-model="templateRaidModel.numMages" 
+                            :options="templateRaidNumMageOptions" 
+                        />
+                    </div>
+                    <div class="form-item">
+                        <label>Gear level</label>
+                        <select-simple 
+                            v-model="templateRaidModel.gearLevel" 
+                            :options="templateRaidGearOptions" 
+                        />
+                    </div>
+                    <div class="form-item">
+                        <label>Faction</label>
+                        <select-simple 
+                            v-model="templateRaidModel.faction" 
+                            :options="factionOptions" 
+                        />
+                    </div>
+                </template>
+
+                <template v-if="templateRaidModel.templateType === 'existing'">
+                    <div class="form-item">
+                        <label>Select raid</label>
+                        <select-simple 
+                            v-model="templateRaidModel.sourceRaid" 
+                            :options="templateRaidSourceOptions" 
+                        />
+                    </div>
+                </template>
+
+                <div class="form-item">
+                    <label>Encounter duration (seconds)</label>
+                    <input 
+                        type="number" 
+                        v-model.number="templateRaidModel.encounterDuration" 
+                        min="10" 
+                        max="300"
+                        placeholder="60"
+                    />
+                </div>                
+
+
+                <div class="buttons">
+                    <button class="btn btn-primary" @click="updateTemplateRaids">Create raids</button>
+                    <button class="btn btn-secondary" @click="close">Cancel</button>
+                </div>
+            </div>
+        </spotlight>
+
     </div>
 </template>

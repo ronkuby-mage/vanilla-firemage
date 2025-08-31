@@ -162,7 +162,7 @@ const renderChart = () => {
                     color: chartColor
                 },
                 tooltip: {
-                    enabled: false
+                    enabled: true
                 },
                 zoom: {
                     pan: {

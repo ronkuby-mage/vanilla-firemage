@@ -581,12 +581,15 @@ const createRaidsFromPreset = () => {
         return;
     }
    
-    const raid = defaultRaid();
+    const baseRaid = defaultRaid();
 
-    raid.name = `${prefix}`;
-    raid.faction = faction;
-    raid.config.duration = encounterDuration;
-    raid.players = [];
+    baseRaid.name = `${prefix}`;
+    baseRaid.faction = faction;
+    baseRaid.config = _.cloneDeep(activeRaid.value.config);
+    baseRaid.config.duration = encounterDuration;
+    baseRaid.config.duration_variance = 0;
+    baseRaid.config.in_comparison = true;
+    baseRaid.players = [];
     
     // Create the specified number of mage players
     let crits = [];
@@ -599,10 +602,10 @@ const createRaidsFromPreset = () => {
             player.buffs.atiesh_mage = numMages - 1;
             player.buffs.atiesh_warlock = Math.min(5 - numMages, 2);
         }
-        stats = displayStats(player);
+        const stats = displayStats(player);
         crits.push(stats.crit);
         player.id = common.uuid();
-        raid.players.push(player);
+        baseRaid.players.push(player);
     }
     const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
 
@@ -612,7 +615,7 @@ const createRaidsFromPreset = () => {
         namePrefix: prefix,
         encounterDuration: encounterDuration,
         averageCrit: averageCrit,
-        naxxTrinketAvailability: !gearLevel.includes('Phase 5')
+        naxxTrinketAvailability: !gearLevel.includes('Phase 5') && !gearLevel.includes('Phase 6 Enter')
     });
     
     raids.value.push(...newRaids);
@@ -642,23 +645,24 @@ const createRaidsFromExisting = () => {
         return;
     }
   
-    const newRaid = _.cloneDeep(sourceRaid);
-    newRaid.id = common.uuid();
-    newRaid.name = `${sourceRaid.name}`;
-    newRaid.faction = sourceRaid.faction;
-    newRaid.config.duration = encounterDuration;    
+    const baseRaid = _.cloneDeep(sourceRaid);
+    baseRaid.id = common.uuid();
+    baseRaid.name = `${sourceRaid.name}`;
+    baseRaid.config.duration = encounterDuration;
+    baseRaid.config.duration_variance = 0;
+    baseRaid.config.in_comparison = true;
     
     // Give players unique ids and calculate average crit
     let crits = [];
-    newRaid.players.forEach(player => {
-        stats = displayStats(player);
+    baseRaid.players.forEach(player => {
+        const stats = displayStats(player);
         crits.push(stats.crit);
         player.id = common.uuid();
     });
     const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
 
     // Generate variations (e.g., opposite faction, different durations, etc.)
-    const newRaids = generateRaidsFromTemplate(sourceRaid, {
+    const newRaids = generateRaidsFromTemplate(baseRaid, {
         isPreset: false,
         namePrefix: sourceRaid.name,
         encounterDuration: encounterDuration,

@@ -197,17 +197,13 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
 
     // active priority
     if (sustain == Sustain.CD) {
+        item = apl.item();
         if (!auraTriggers.has(derivedOpening)) {
-            item = apl.item();
             item.condition.condition_type = apl.condition_type.TRUE;
             item.condition.values = [apl.value()];
             item.condition.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
             item.condition.values[0].vint = common.auras.COMBUSTION;
-            item.action = apl.getAction(spell);
-            items.push(item);
         } else {
-
-            item = apl.item();
             item.condition.condition_type = apl.condition_type.TRUE;
             item.condition.condition_type = apl.condition_type.OR;
             cond = apl.condition();
@@ -368,10 +364,10 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
         bufferSpells.forEach(bufferSpell => {
             let openingPermutations = [];
             if (isPreset) {
-                if (encounterDuration < mediumFightThreshold) {
+                if (encounterDuration < longFightThreshold) {
                     openingPermutations.push(OpeningPermutation.MQG);
                 }
-                if (encounterDuration > shortFightThreshold && encounterDuration < longFightThreshold) {
+                if (encounterDuration >= shortFightThreshold && encounterDuration < longFightThreshold) {
                     openingPermutations.push(OpeningPermutation.TWO_TRINKETS);
                 }
                 if (encounterDuration >= mediumFightThreshold) {
@@ -444,7 +440,7 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                             player.loadout.trinket2 = _.cloneDeep({ item_id: playerTrinket[1], enchant_id: null });
                         } else {
                             if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG || player.loadout.trinket2.item_id == ids.ids.TRINKET_MQG) {
-                                if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) || knownDamageTrinkets.has(player.loadout.trinket1.item_id)) {
+                                if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) || knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
                                     derivedOpening = OpeningPermutation.TWO_TRINKETS;
                                     if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG) {
                                         playerTrinket = [player.loadout.trinket2.item_id, ids.ids.TRINKET_MQG];
@@ -514,28 +510,6 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
     });
 
     return generatedRaids;
-};
-
-/**
- * Helper function to convert race based on faction
- */
-const convertRaceForFaction = (currentRace, targetFaction) => {
-    const raceConversions = {
-        'Alliance': {
-            'Troll': 'Gnome',
-            'Undead': 'Human',
-            'Gnome': 'Gnome',
-            'Human': 'Human'
-        },
-        'Horde': {
-            'Gnome': 'Troll',
-            'Human': 'Undead', 
-            'Troll': 'Troll',
-            'Undead': 'Undead'
-        }
-    };
-    
-    return raceConversions[targetFaction][currentRace] || currentRace;
 };
 
 // Export additional utility functions if needed

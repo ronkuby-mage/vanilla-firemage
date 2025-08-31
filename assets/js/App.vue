@@ -3576,7 +3576,7 @@ onMounted(() => {
                     <select-simple 
                         v-model="templateRaidModel.templateType" 
                         :options="[
-                            { value: 'preset', title: 'From preset' },
+                            { value: 'preset', title: 'From preset (debuffs & external buffs from active)'},
                             { value: 'existing', title: 'From existing raid' }
                         ]" 
                     />

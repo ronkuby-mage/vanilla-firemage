@@ -521,7 +521,8 @@ const templateRaidNumMageOptions = computed(() => [
     { value: 2, title: '2 Mages' },
     { value: 3, title: '3 Mages' },
     { value: 4, title: '4 Mages' },
-    { value: 5, title: '5 Mages' }
+    { value: 5, title: '5 Mages' },
+    { value: 6, title: '6 Mages' }
 ]);
 
 const templateRaidGearOptions = computed(() => {
@@ -600,13 +601,14 @@ const createRaidsFromPreset = () => {
         player.loadout = _.cloneDeep(presetLoadout.loadout);
         if (gearLevel.includes('Era')) {
             player.buffs.atiesh_mage = numMages - 1;
-            player.buffs.atiesh_warlock = Math.min(5 - numMages, 2);
+            player.buffs.atiesh_warlock = Math.max(Math.min(5 - numMages, 2), 0);
         }
         const stats = displayStats(player);
-        crits.push(stats.crit);
+        crits.push((stats.hit + 89.0)*stats.crit/99.0);
         player.id = common.uuid();
         baseRaid.players.push(player);
     }
+    /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
     const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
 
     // Generate variations
@@ -656,9 +658,10 @@ const createRaidsFromExisting = () => {
     let crits = [];
     baseRaid.players.forEach(player => {
         const stats = displayStats(player);
-        crits.push(stats.crit);
+        crits.push((stats.hit + 89.0)*stats.crit/99.0);
         player.id = common.uuid();
     });
+    /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
     const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
 
     // Generate variations (e.g., opposite faction, different durations, etc.)

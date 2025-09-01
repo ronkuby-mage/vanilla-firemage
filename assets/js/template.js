@@ -12,7 +12,8 @@ const staticCondition = {
     2: 20.0,
     3: 15.0,
     4: 12.0,
-    5: 10.0
+    5: 10.0,
+    6: 10.0
 };
 const preScorches = {
     1: 6,
@@ -47,10 +48,10 @@ const auraTriggers = new Set([
 const SustainPermutation = Object.freeze({
     NO_SUSTAIN: "",
     ONE_SUSTAIN: "cob",
-    TWO_SUSTAIN_COBCOB: "cob-cob",
+    TWO_SUSTAIN_COBCOB: "2cob",
     TWO_SUSTAIN_COBCD: "cob-cd",
     TWO_SUSTAIN_COBWEP: "cob-wep",
-    THREE_SUSTAIN_COBCOBCOB: "3cob-cob-cob",
+    THREE_SUSTAIN_COBCOBCOB: "3cob",
     THREE_SUSTAIN_COBCDCD: "cob-2cd",
     THREE_SUSTAIN_COBCDWEP: "cob-cd-wep",
     FOUR_SUSTAIN_COBCOBCDCD: "2cob-2cd",
@@ -122,7 +123,9 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
             while (sustainPermutations.length == 0 && factor < 999) {
                 sorted.forEach(values => {
                     if (values[0] >= staticTime/factor && values[0] < staticTime*factor) {
-                        sustainPermutations.push(...rotationsBySustains[values[1]]);
+                        if (values[1] in rotationsBySustains) {
+                            sustainPermutations.push(...rotationsBySustains[values[1]]);
+                        }
                     }
                 });
                 factor *= durationCriteria;
@@ -380,7 +383,7 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
 
             openingPermutations.forEach(openingPermutation => {
                 // calculate time to static conditions
-                const buildMages = Math.min(Math.max(templateRaid.players.length, 2), 5);
+                const buildMages = Math.min(Math.max(templateRaid.players.length, 2), 6);
                 const buildTime = staticCondition[buildMages] + (50.0 - averageCrit)/5.0;
                 const staticTime = Math.max(encounterDuration - buildTime, 0.0)
                 let sustainPermutations = [];

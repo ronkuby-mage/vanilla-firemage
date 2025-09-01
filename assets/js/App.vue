@@ -600,7 +600,7 @@ const createRaidsFromPreset = () => {
         player.race = faction === 'Alliance' ? 'Gnome' : 'Undead';
         player.loadout = _.cloneDeep(presetLoadout.loadout);
         if (gearLevel.includes('Era')) {
-            player.buffs.atiesh_mage = numMages - 1;
+            player.buffs.atiesh_mage = Math.min(numMages - 1, 4);
             player.buffs.atiesh_warlock = Math.max(Math.min(5 - numMages, 2), 0);
         }
         const stats = displayStats(player);

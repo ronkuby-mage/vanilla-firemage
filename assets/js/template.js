@@ -106,7 +106,7 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBCOB);
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBCD);
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBWEP);
-    } else if (regularMages >= 3) {
+    } else if (regularMages >= 3 && regularMages in ignite) {
         let table = ignite[regularMages];
         for (const [key, value] of Object.entries(table)) {
             if (value.length > critLookup) {
@@ -131,6 +131,8 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
                 factor *= durationCriteria;
             }
         }
+    } else {
+        sustainPermutations.push(SustainPermutation.NO_SUSTAIN);
     }
 
     return sustainPermutations;

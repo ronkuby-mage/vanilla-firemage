@@ -581,6 +581,10 @@ const createRaidsFromPreset = () => {
         alert("Could not find preset loadout");
         return;
     }
+    // take all raids off comparison
+    raids.value.forEach(raid => {
+        raid.config.in_comparison = false;
+    });
    
     const baseRaid = defaultRaid();
 
@@ -604,7 +608,7 @@ const createRaidsFromPreset = () => {
             player.buffs.atiesh_warlock = Math.max(Math.min(5 - numMages, 2), 0);
         }
         const stats = displayStats(player);
-        crits.push((stats.hit + 89.0)*stats.crit/99.0);
+        crits.push((Math.min(stats.hit, 10.0) + 89.0)*stats.crit/99.0);
         player.id = common.uuid();
         baseRaid.players.push(player);
     }
@@ -623,7 +627,17 @@ const createRaidsFromPreset = () => {
     raids.value.push(...newRaids);
     raids.value = _.sortBy(raids.value, "name");
     saveRaids(raids.value);
-    
+
+    // Set the first newly created raid as active (after sorting)
+    if (newRaids.length > 0) {
+        const firstNewRaid = raids.value.find(raid => 
+            newRaids.some(newRaid => newRaid.id === raid.id)
+        );
+        if (firstNewRaid) {
+            settings.raid_id = firstNewRaid.id;
+        }
+    }    
+
     notify({
         title: "Success!",
         text: `Created ${newRaids.length} raids with ${numMages} mages each`,
@@ -646,6 +660,10 @@ const createRaidsFromExisting = () => {
         alert("Could not find source raid");
         return;
     }
+    // take all raids off comparison
+    raids.value.forEach(raid => {
+        raid.config.in_comparison = false;
+    });
   
     const baseRaid = _.cloneDeep(sourceRaid);
     baseRaid.id = common.uuid();
@@ -658,7 +676,7 @@ const createRaidsFromExisting = () => {
     let crits = [];
     baseRaid.players.forEach(player => {
         const stats = displayStats(player);
-        crits.push((stats.hit + 89.0)*stats.crit/99.0);
+        crits.push((Math.min(stats.hit, 10.0) + 89.0)*stats.crit/99.0);
         player.id = common.uuid();
     });
     /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
@@ -675,7 +693,17 @@ const createRaidsFromExisting = () => {
     raids.value.push(...newRaids);
     raids.value = _.sortBy(raids.value, "name");
     saveRaids(raids.value);
-    
+
+    // Set the first newly created raid as active (after sorting)
+    if (newRaids.length > 0) {
+        const firstNewRaid = raids.value.find(raid => 
+            newRaids.some(newRaid => newRaid.id === raid.id)
+        );
+        if (firstNewRaid) {
+            settings.raid_id = firstNewRaid.id;
+        }
+    }    
+
     notify({
         title: "Success!",
         text: `Created ${newRaids.length} candidate rotations for ${sourceRaid.name}`,

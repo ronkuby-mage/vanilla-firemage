@@ -8,6 +8,8 @@ const shortFightThreshold = 25.0;
 const mediumFightThreshold = 45.0;
 const longFightThreshold = 60.0;
 const durationCriteria = 1.5;
+const scorchPerCrit = 1.3;
+const scorchPerSP = -6.7;
 const staticCondition = {
     2: 20.0,
     3: 15.0,
@@ -106,7 +108,7 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBCOB);
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBCD);
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBWEP);
-    } else if (regularMages >= 3) {
+    } else if (regularMages >= 3 && regularMages in ignite) {
         let table = ignite[regularMages];
         for (const [key, value] of Object.entries(table)) {
             if (value.length > critLookup) {
@@ -131,6 +133,8 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
                 factor *= durationCriteria;
             }
         }
+    } else {
+        sustainPermutations.push(SustainPermutation.NO_SUSTAIN);
     }
 
     return sustainPermutations;
@@ -190,7 +194,7 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
         }
 
         item = apl.item();
-        item.condition.condition_type = apl.condition_type.TRUE;
+        item.condition.condition_type = apl.condition_type.FALSE;
         item.condition.values = [apl.value()];
         item.condition.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
         item.condition.values[0].vint = cooldown;
@@ -336,11 +340,12 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
         isPreset = true,
         namePrefix = '',
         encounterDuration = 60,
-        averageCrit = 25.0,
         naxxTrinketAvailability = true
         // Add other options as needed
     } = options;
+
     const generatedRaids = [];
+    const groupId = common.uuid();
 
     // first determine whether no prescorch should be an option
     let preScorchPermutations = [PreScorch.PRESCORCH_YES];
@@ -382,6 +387,77 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
             }
 
             openingPermutations.forEach(openingPermutation => {
+                const newRaid = _.cloneDeep(templateRaid);
+
+                let crits = [];
+                let playerTrinkets = [];
+                let derivedOpenings = [];
+                let scorchRanks = [];
+                newRaid.players.forEach(player => {
+                    player.id = common.uuid();
+                    let derivedOpening = openingPermutation;                
+                    let playerTrinket = [0, 0];
+                    // check if we need trinket swap
+                    if (isPreset) {
+                        if (openingPermutation == OpeningPermutation.ACTIVE_DAMAGE) {
+                            if (naxxTrinketAvailability) {
+                                playerTrinket = [ids.ids.TRINKET_MARK_OF_THE_CHAMPION, ids.ids.TRINKET_RESTRAINED_ESSENCE];
+                            } else {
+                                playerTrinket = [ids.ids.TRINKET_TEAR, ids.ids.TRINKET_ZHC];
+                            }
+                        } else if (openingPermutation == OpeningPermutation.MQG) {
+                            if (naxxTrinketAvailability) {
+                                playerTrinket = [ids.ids.TRINKET_MARK_OF_THE_CHAMPION, ids.ids.TRINKET_MQG];
+                            } else {
+                                playerTrinket = [ids.ids.TRINKET_TEAR, ids.ids.TRINKET_MQG];
+                            }
+                        } else if (openingPermutation == OpeningPermutation.TWO_TRINKETS) {
+                            if (naxxTrinketAvailability) {
+                                playerTrinket = [ids.ids.TRINKET_RESTRAINED_ESSENCE, ids.ids.TRINKET_MQG];
+                            } else {
+                                playerTrinket = [ids.ids.TRINKET_ZHC, ids.ids.TRINKET_MQG];
+                            }
+                        }
+                        player.loadout.trinket1 = _.cloneDeep({ item_id: playerTrinket[0], enchant_id: null });
+                        player.loadout.trinket2 = _.cloneDeep({ item_id: playerTrinket[1], enchant_id: null });
+                    } else {
+                        if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG || player.loadout.trinket2.item_id == ids.ids.TRINKET_MQG) {
+                            if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) || knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
+                                derivedOpening = OpeningPermutation.TWO_TRINKETS;
+                                if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG) {
+                                    playerTrinket = [player.loadout.trinket2.item_id, ids.ids.TRINKET_MQG];
+                                } else {
+                                    playerTrinket = [player.loadout.trinket1.item_id, ids.ids.TRINKET_MQG];
+                                }
+                            } else {
+                                derivedOpening = OpeningPermutation.MQG;
+                                playerTrinket = [0, ids.ids.TRINKET_MQG];
+                            }
+                        } else if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) && knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
+                            derivedOpening = OpeningPermutation.TWO_DAMAGE;
+                            playerTrinket = [player.loadout.trinket1.item_id, player.loadout.trinket2.item_id];
+                        } else if (knownDamageTrinkets.has(player.loadout.trinket1.item_id)) {
+                            derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
+                            playerTrinket = [0, player.loadout.trinket1.item_id];
+                        } else if (knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
+                            derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
+                            playerTrinket = [0, player.loadout.trinket2.item_id];
+                        } 
+                        // implied else is that erivedOpening = OpeningPermutation.BY_PLAYER, which never meets any condition
+                    }
+                    playerTrinkets.push(_.cloneDeep(playerTrinket));
+                    derivedOpenings.push(derivedOpening);
+                    const stats = common.displayStats(player);
+                    const effectiveCrit = (Math.min(stats.hit, 10.0) + 89.0)*stats.crit/99.0;
+                    crits.push(effectiveCrit);
+                    scorchRanks.push(stats.sp*scorchPerSP + effectiveCrit*scorchPerCrit);
+                });
+                /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
+                const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
+                const scorchRank = scorchRanks.map((value, index) => 
+                    scorchRanks.filter((v, i) => v > value || (v === value && i < index)).length
+                );
+
                 // calculate time to static conditions
                 const buildMages = Math.min(Math.max(templateRaid.players.length, 2), 6);
                 const buildTime = staticCondition[buildMages] + (50.0 - averageCrit)/5.0;
@@ -394,6 +470,7 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                 } else {
                     sustainPermutations = getSustainPermutations(staticTime, templateRaid.players.length, averageCrit);
                 }
+                console.log("My perms =", sustainPermutations)
 
                 sustainPermutations.forEach(sustainPermutation => {
                     let desc = [];
@@ -411,69 +488,23 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                     }
                     const description = desc.map(str => str !== "" ? str + " " : str);
                     let count = 0;
-                    const newRaid = _.cloneDeep(templateRaid);
-                    newRaid.id = common.uuid();
-                    newRaid.name = `${namePrefix} ${description.join("")}`;
-                    newRaid.players.forEach(player => {
-                        player.id = common.uuid();
-                        let derivedOpening = openingPermutation;                
-                        let playerTrinket = [];
-                        // check if we need trinket swap
-                        if (isPreset) {
-                            if (openingPermutation == OpeningPermutation.ACTIVE_DAMAGE) {
-                                if (naxxTrinketAvailability) {
-                                    playerTrinket = [ids.ids.TRINKET_MARK_OF_THE_CHAMPION, ids.ids.TRINKET_RESTRAINED_ESSENCE];
-                                } else {
-                                    playerTrinket = [ids.ids.TRINKET_TEAR, ids.ids.TRINKET_ZHC];
-                                }
-                            } else if (openingPermutation == OpeningPermutation.MQG) {
-                                if (naxxTrinketAvailability) {
-                                    playerTrinket = [ids.ids.TRINKET_MARK_OF_THE_CHAMPION, ids.ids.TRINKET_MQG];
-                                } else {
-                                    playerTrinket = [ids.ids.TRINKET_TEAR, ids.ids.TRINKET_MQG];
-                                }
-                            } else if (openingPermutation == OpeningPermutation.TWO_TRINKETS) {
-                                if (naxxTrinketAvailability) {
-                                    playerTrinket = [ids.ids.TRINKET_RESTRAINED_ESSENCE, ids.ids.TRINKET_MQG];
-                                } else {
-                                    playerTrinket = [ids.ids.TRINKET_ZHC, ids.ids.TRINKET_MQG];
-                                }
-                            }
-                            player.loadout.trinket1 = _.cloneDeep({ item_id: playerTrinket[0], enchant_id: null });
-                            player.loadout.trinket2 = _.cloneDeep({ item_id: playerTrinket[1], enchant_id: null });
-                        } else {
-                            if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG || player.loadout.trinket2.item_id == ids.ids.TRINKET_MQG) {
-                                if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) || knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
-                                    derivedOpening = OpeningPermutation.TWO_TRINKETS;
-                                    if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG) {
-                                        playerTrinket = [player.loadout.trinket2.item_id, ids.ids.TRINKET_MQG];
-                                    } else {
-                                        playerTrinket = [player.loadout.trinket1.item_id, ids.ids.TRINKET_MQG];
-                                    }
-                                } else {
-                                    derivedOpening = OpeningPermutation.MQG;
-                                    playerTrinket = [0, ids.ids.TRINKET_MQG];
-                                }
-                            } else if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) && knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
-                                derivedOpening = OpeningPermutation.TWO_DAMAGE;
-                                playerTrinket = [player.loadout.trinket1.item_id, player.loadout.trinket2.item_id];
-                            } else if (knownDamageTrinkets.has(player.loadout.trinket1.item_id)) {
-                                derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
-                                playerTrinket = [0, player.loadout.trinket1.item_id];
-                            } else if (knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
-                                derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
-                                playerTrinket = [0, player.loadout.trinket2.item_id];
-                            }
-                        }
+                    const newSubRaid = _.cloneDeep(newRaid);
+                    newSubRaid.id = common.uuid();
+                    newSubRaid.groupId = groupId;
+
+                    let fullDescription = description.join("");
+                    if (!isPreset && fullDescription == "") {
+                        fullDescription = "option";
+                    }
+                    newSubRaid.name = `${namePrefix} ${fullDescription}`;
+
+                    newSubRaid.players.forEach((player, index) => {
+                        let playerTrinket = playerTrinkets[index];
+                        let derivedOpening = derivedOpenings[index];
                         // done collecting/setting player trinkets
                         // time to build the player apl
-                        count += 1;
-                        const isLastPlayer = templateRaid.players.length == count;
-                        const isSecondLastPlayer = templateRaid.players.length - 1 == count;
-                        const isThirdLastPlayer = templateRaid.players.length - 2 == count;
-                        const isFourthLastPlayer = templateRaid.players.length - 3 == count;
                         let sustain = Sustain.NO;
-                        if ((isLastPlayer && ((sustainPermutation == SustainPermutation.ONE_SUSTAIN) ||
+                        if ((scorchRank[index] == 0 && ((sustainPermutation == SustainPermutation.ONE_SUSTAIN) ||
                                             (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
                                             (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
                                             (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
@@ -482,31 +513,30 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                                             (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
                                             (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD) ||
                                             (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
-                            (isSecondLastPlayer && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
+                            (scorchRank[index] == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
                                             (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB) ||
                                             (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD) ||
                                             (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
-                            (isThirdLastPlayer && (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB))) {
+                            (scorchRank[index] == 2 && (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB))) {
                             sustain = Sustain.COB;
-                        }
-                        if ((isSecondLastPlayer && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
+                        } else if ((scorchRank[index] == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
                                                    (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
                                                    (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP))) ||
-                            (isThirdLastPlayer && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
+                            (scorchRank[index] == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
                                                   (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) ||
-                            (isFourthLastPlayer && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) {
+                            (scorchRank[index] == 3 && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) {
                             sustain = Sustain.CD;
                         }
-                        if ((isSecondLastPlayer && sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
-                            (isThirdLastPlayer && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
+                        if ((scorchRank[index] == 1 && sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
+                            (scorchRank[index] == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
                                                   (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
-                            (isFourthLastPlayer && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) {
+                            (scorchRank[index] == 3 && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) {
                             sustain = Sustain.WEP;
                         }
-                        const playerApl = getPlayerApl(preScorch, bufferSpell, derivedOpening, sustain, playerTrinket, player.pi_count > 0, isLastPlayer, templateRaid.players.length);
+                        const playerApl = getPlayerApl(preScorch, bufferSpell, derivedOpening, sustain, playerTrinket, player.pi_count > 0, scorchRank[index] == 0, templateRaid.players.length);
                         player.apl = _.cloneDeep(playerApl);
                     });
-                    generatedRaids.push(newRaid);
+                    generatedRaids.push(newSubRaid);
                 });
             });
         });

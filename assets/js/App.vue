@@ -18,18 +18,7 @@ import { generateRaidsFromTemplate } from "./template";
 const css = (str) => {
     return _.kebabCase(str);
 };
-const raceFaction = (race) => {
-    return ["Gnome", "Human"].indexOf(race) != -1 ? "Alliance" : "Horde";
-};
-const itemUrl = (id) => {
-    if (isCustomItem(id))
-        return null;
-    if (typeof(id) == "object")
-        id = id.id;
-    if (typeof(id) == "string")
-        id = id.replace(":", "&rand=");
-    return "https://www.wowhead.com/classic/item="+id;
-};
+
 const spellUrl = (id) => {
     return "https://www.wowhead.com/classic/spell="+id;
 };
@@ -76,187 +65,10 @@ const refreshTooltips = () => {
 /*
  * Stats
  */
-const baseStats = (race) => {
-    let stats = common.stats();
-    stats.crit = 6.2;
-
-    if (race == "Gnome") {
-        stats.int = 132;
-        stats.spi = 120;
-    }
-    else if (race == "Human") {
-        stats.int = 125;
-        stats.spi = 126;
-    }
-    else if (race == "Troll") {
-        stats.int = 121;
-        stats.spi = 121;
-    }
-    else if (race == "Undead") {
-        stats.int = 123;
-        stats.spi = 125;
-    }
-
-    return stats;
-};
-const addStats = (a, b) => {
-    let stats = common.stats();
-    let val = (v) => {
-        v = parseFloat(v);
-        return isNaN(v) ? 0 : v;
-    };
-    for (let key in stats)
-        stats[key] = val(_.get(a, key, 0)) + val(_.get(b, key, 0));
-    return stats;
-};
 
 /*
  * Gear / loadout
  */
-const loadoutSlotToItemSlot = (slot) => {
-    return slot.replace(/[0-9]+/g, "");
-};
-const getItem = (slot, id) => {
-    if (id === undefined) {
-        if (!slot)
-            return null;
-        id = slot;
-        for (let key in items.gear) {
-            let item = items.gear[key].find(i => i.id == id);
-            if (item)
-                return item;
-        }
-    }
-    else {
-        if (!id)
-            return null;
-        slot = loadoutSlotToItemSlot(slot);
-        let item = items.gear[slot].find(i => i.id == id);
-        if (item)
-            return item;
-    }
-    let item = customItems.value.find(i => i.id == id);
-    if (item)
-        return item;
-
-    return null;
-};
-const getEnchant = (slot, id) => {
-    if (id === undefined) {
-        id = slot;
-        for (let key in items.enchants) {
-            let item = items.enchants[key].find(i => i.id == id || i.enchantment_id == id);
-            if (item)
-                return item;
-        }
-        return null;
-    }
-    else {
-        slot = loadoutSlotToItemSlot(slot);
-        return items.enchants[slot].find(i => i.id == id || i.enchantment_id == id);
-    }
-};
-const gearUrl = (player, slot) => {
-    let itemSlot = player.loadout[slot];
-    if (!itemSlot.item_id)
-        return null;
-    let item = getItem(slot, itemSlot.item_id);
-    if (!item)
-        return null;
-    let url = itemUrl(item.id);
-
-    if (itemSlot.enchant_id) {
-        let enchant = getEnchant(itemSlot.enchant_id);
-        if (enchant)
-            url+= "&ench="+enchant.enchantment_id;
-    }
-
-    if (item.set) {
-        let pcs = [];
-        for (let key in player.loadout) {
-            let itm = getItem(key, player.loadout[key].item_id);
-            if (_.get(itm, "set") == item.set)
-                pcs.push(itm.id);
-        }
-        if (pcs.length)
-            url+= "&pcs="+pcs.join(":");
-    }
-
-    return url;
-};
-const loadoutSlots = () => {
-    return [
-        "head", "neck", "shoulder", "back", "chest", "wrist",
-        "hands", "waist", "legs", "feet",
-        "finger1", "finger2", "trinket1", "trinket2",
-        "main_hand", "off_hand", "ranged",
-    ];
-};
-const baseLoadout = () => {
-    let loadout = {};
-    for (let slot of loadoutSlots()) {
-        loadout[slot] = {
-            item_id: null,
-            enchant_id: null,
-        };
-    }
-    return loadout;
-};
-const loadoutSets = (loadout) => {
-    let sets = {};
-
-    for (let slot in loadout) {
-        
-        let item = getItem(loadout[slot].item_id);
-        if (item) {
-            if (item.set) {
-                if (!sets.hasOwnProperty(item.set)) {
-                    let set = _.find(items.sets, {id: item.set});
-                    sets[item.set] = 1;
-                }
-                else {
-                    sets[item.set]++;
-                }
-            }
-        }
-    }
-    return sets;
-};
-const loadoutStats = (loadout) => {
-
-    let stats = common.stats();
-    let sets = {};
-
-    for (let slot in loadout) {
-        
-        let item = getItem(loadout[slot].item_id);
-        if (item) {
-            stats = addStats(stats, item);
-            let enchant = getEnchant(loadout[slot].enchant_id);
-            if (enchant)
-                stats = addStats(stats, enchant);
-
-            if (item.set) {
-                if (!sets.hasOwnProperty(item.set)) {
-                    let set = _.find(items.sets, {id: item.set});
-                    sets[item.set] = {
-                        set: set,
-                        n: 1,
-                    };
-                }
-                else {
-                    sets[item.set].n++;
-                    if (sets[item.set].set) {
-                        let setbonus = _.get(sets[item.set].set, "set"+sets[item.set].n);
-                        if (setbonus)
-                            stats = addStats(stats, setbonus);
-                    }
-                }
-            }
-        }
-    }
-    return stats;
-};
 const isItemSpecial = (id) => {
     for (let key in items.ids) {
         if (items.ids[key] == id)
@@ -364,8 +176,8 @@ const defaultPlayer = () => {
         race: "Undead",
         level: 60,
         id: common.uuid(),        
-        stats: baseStats("Undead"),
-        loadout: baseLoadout(),
+        stats: common.baseStats("Undead"),
+        loadout: common.baseLoadout(),
         buffs: defaultBuffs(),
         pi_count: 1,
         is_target: true,
@@ -383,7 +195,7 @@ const createPlayer = (name) => {
     activeRaid.value.players.push(player);
 };
 const visualStats = (player) => {
-    let stats = displayStats(player);
+    let stats = common.displayStats(player);
     stats.mana+= 1213 + stats.int*15 - 280;
     return stats;
 };
@@ -397,9 +209,11 @@ const activePlayer = computed(() => {
 /*
  * Raid
  */
+
 const defaultRaid = (name) => {
     return {
         id: common.uuid(),
+        groupId: "",
         name: "My raid",
         faction: "Horde",
         config: defaultConfig(),
@@ -469,7 +283,36 @@ const deleteRaid = (id) => {
 const activeRaid = computed(() => {
     return raids.value.find(raid => raid.id == settings.raid_id);
 });
-
+const getRaidsDeletableInGroup = (groupId) => {
+    if (groupId == "") return [];
+    
+    return raids.value.filter(raid => {
+        // Must match the prefix pattern
+        if (raid.groupId == groupId) {
+            return true;
+        }
+        
+        return false;
+    });
+};
+const deleteRaidGroup = (groupId) => {
+    const raidsToDelete = getRaidsDeletableInGroup(groupId);
+    const idsToDelete = raidsToDelete.map(raid => raid.id);
+    
+    raids.value = raids.value.filter(raid => !idsToDelete.includes(raid.id));
+    
+    if (!raids.value.length)
+        raids.value.push(defaultRaid());
+    
+    if (idsToDelete.includes(settings.raid_id))
+        settings.raid_id = raids.value[0].id;
+    
+    saveRaids(raids.value);
+};
+const confirmationGroupContinue = () => {
+    confirmation.value.groupContinue();
+    confirmSpotlight.value.close();
+};
 /*
  * Settings
  */
@@ -597,7 +440,6 @@ const createRaidsFromPreset = () => {
     baseRaid.players = [];
     
     // Create the specified number of mage players
-    let crits = [];
     for (let i = 1; i <= numMages; i++) {
         const player = defaultPlayer();
         player.name = `Mage${i}`;
@@ -607,20 +449,16 @@ const createRaidsFromPreset = () => {
             player.buffs.atiesh_mage = Math.min(numMages - 1, 4);
             player.buffs.atiesh_warlock = Math.max(Math.min(5 - numMages, 2), 0);
         }
-        const stats = displayStats(player);
-        crits.push((Math.min(stats.hit, 10.0) + 89.0)*stats.crit/99.0);
+        const stats = common.displayStats(player);
         player.id = common.uuid();
         baseRaid.players.push(player);
     }
-    /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
-    const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
 
     // Generate variations
     const newRaids = generateRaidsFromTemplate(baseRaid, {
         isPreset: true,
         namePrefix: prefix,
         encounterDuration: encounterDuration,
-        averageCrit: averageCrit,
         naxxTrinketAvailability: !gearLevel.includes('Phase 5') && !gearLevel.includes('Phase 6 Enter')
     });
     
@@ -673,21 +511,16 @@ const createRaidsFromExisting = () => {
     baseRaid.config.in_comparison = true;
     
     // Give players unique ids and calculate average crit
-    let crits = [];
     baseRaid.players.forEach(player => {
-        const stats = displayStats(player);
-        crits.push((Math.min(stats.hit, 10.0) + 89.0)*stats.crit/99.0);
+        const stats = common.displayStats(player);
         player.id = common.uuid();
     });
-    /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
-    const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
 
     // Generate variations (e.g., opposite faction, different durations, etc.)
     const newRaids = generateRaidsFromTemplate(baseRaid, {
         isPreset: false,
         namePrefix: sourceRaid.name,
-        encounterDuration: encounterDuration,
-        averageCrit: averageCrit
+        encounterDuration: encounterDuration
     });    
     
     raids.value.push(...newRaids);
@@ -720,70 +553,8 @@ const isRunning = ref(false);
 // stats for the simulator -- gear only
 const simStats = (player) => {
     let stats = common.stats();
-    stats = addStats(stats, loadoutStats(player.loadout));
-    stats = addStats(stats, player.bonus_stats);
-    stats.sp += stats.sp_fire;
-
-    return stats;
-};
-
-const displayStats = (player) => {
-    let x;
-    let faction = raceFaction(player.race);
-    let stats = baseStats(player.race);
-    stats = addStats(stats, loadoutStats(player.loadout));
-    stats = addStats(stats, player.bonus_stats);
-
-    if (player.buffs.arcane_intellect)
-        stats.int+= 31;
-    if (player.buffs.imp_mark_of_the_wild) {
-        x = 12;
-        x = x * 1.35;
-        stats.int += x;
-    }
-    if (player.buffs.gift_of_stormwind)
-        stats.int+= 30;
-    if (player.buffs.infallible_mind)
-        stats.int+= 25;
-    if (player.buffs.runn_tum_tuber)
-        stats.int+= 10;
-    if (player.buffs.songflower)
-        stats.int+= 15;
-    if (player.buffs.blessing_of_kings && faction == "Alliance")
-        stats.int*= 1.1;
-    if (player.buffs.spirit_of_zandalar)
-        stats.int*= 1.15;
-    if (player.race == "Gnome")
-        stats.int*= 1.05;
-
-    if (player.buffs.elixir_greater_arcane)
-        stats.sp+= 35;
-    if (player.buffs.elixir_greater_firepower)
-        stats.sp_fire+= 40;
-    if (player.buffs.flask_of_supreme_power)
-        stats.sp+= 150;
-    if (player.buffs.blessed_weapon_oil)
-        stats.sp+= 60;
-    else if (player.buffs.brilliant_wizard_oil)
-        stats.sp+= 36;
-    if (player.buffs.very_berry_cream)
-        stats.sp+= 23;
-    stats.sp += 33*player.buffs.atiesh_warlock;
-
-    if (player.buffs.brilliant_wizard_oil)
-        stats.crit+= 1;
-    if (player.buffs.rallying_cry)
-        stats.crit+= 10;
-    if (player.buffs.songflower)
-        stats.crit+= 5;
-    if (player.buffs.dire_maul_tribute)
-        stats.crit+=3;
-    stats.crit += stats.int / 59.5;
-    stats.crit += 2*player.buffs.atiesh_mage;
-    if (player.buffs.moonkin_aura)
-        stats.crit += 3;
-
-    stats.int = Math.round(stats.int);
+    stats = common.addStats(stats, common.loadoutStats(player.loadout));
+    stats = common.addStats(stats, player.bonus_stats);
     stats.sp += stats.sp_fire;
 
     return stats;
@@ -798,7 +569,7 @@ const simLoadoutItems = (loadout) => {
         simItems.zhc = true;
     if (loadout.trinket1.item_id == items.ids.TRINKET_MQG || loadout.trinket2.item_id == items.ids.TRINKET_MQG)
         simItems.mqg = true;
-    let simSets = loadoutSets(loadout);
+    let simSets = common.loadoutSets(loadout);
     if (simSets.hasOwnProperty(items.ids.SET_UDC)) {
         if (simSets[items.ids.SET_UDC] == 3)
             simItems.udc = true;
@@ -808,7 +579,7 @@ const simLoadoutItems = (loadout) => {
 const simBuffs = (player) => {
     //let buffs = _.cloneDeep(defaultBuffs);
     let buffs = defaultBuffs();
-    let faction = raceFaction(player.race);
+    let faction = common.raceFaction(player.race);
 
     // check for 21 total
     // raid buffs
@@ -1026,12 +797,16 @@ const confirm = (options) => {
         confirm: "Yes",
         abort: "No",
         continue: () => {},
+        showGroupDelete: false,
+        groupDelete: "Delete Group",
+        groupContinue: () => {},
     };
     confirmation.value = _.merge(defaults, options);
     confirmSpotlight.value.open();
 
     return new Promise((resolve, reject) => {
         confirmation.value.continue = resolve;
+        confirmation.value.groupContinue = options.groupContinue || (() => {});
     });
 };
 const confirmationContinue = () => {
@@ -1078,10 +853,23 @@ const notify = (obj) => {
 const raidSelectOpen = ref(false);
 const confirmDeleteRaid = (raid) => {
     raidSelectOpen.value = false;
+    
+    const deletableRaids = getRaidsDeletableInGroup(raid.groupId);
+    const isPartOfGroup = raid.groupId != "" && deletableRaids.length > 1;
+    
     confirm({
-        text: "Are you sure you want to delete "+raid.name+"?",
+        text: isPartOfGroup 
+            ? `Are you sure you want to delete "${raid.name}"?`
+            : `Are you sure you want to delete "${raid.name}"?`,
         confirm: "Delete",
         abort: "Cancel",
+        showGroupDelete: isPartOfGroup,
+        groupDelete: deletableRaids.length 
+            ? `Delete ${deletableRaids.length} raids`
+            : `Delete ${deletableRaids.length} raids`,
+        groupContinue: () => {
+            deleteRaidGroup(raid.groupId);
+        }
     }).then(() => {
         deleteRaid(raid.id);
     });
@@ -1144,7 +932,7 @@ const updateRaid = () => {
     }
 
     for (let player of raid.players) {
-        if (raceFaction(player.race) != raidModel.value.faction)
+        if (common.raceFaction(player.race) != raidModel.value.faction)
             player.race = convertRace(player.race);
         if (player.custom_items && player.custom_items.length) {
             for (let item of player.custom_items) {
@@ -1160,11 +948,15 @@ const updateRaid = () => {
 
     raids.value = _.sortBy(raids.value, "name");
 };
+const onRaidNameChange = () => {
+    if (activeRaid.value) {
+        activeRaid.value.groupId = "";
+    }
+};
 const factionOptions = [
     { value: "Alliance", title: "Alliance" },
     { value: "Horde", title: "Horde" },
 ];
-
 const bossOptions = [
     { value: "None", title: "None" },
     { value: "Loatheb", title: "Loatheb" },
@@ -1377,7 +1169,6 @@ const cycleCount = (field) => {
     const max = 4;
     const total = activePlayer.value.buffs.atiesh_mage + activePlayer.value.buffs.atiesh_warlock + Number(activePlayer.value.buffs.moonkin_aura);
     const cur  = Number(activePlayer.value.buffs[field] ?? 0);
-    //console.log("hello?", field);
     if (field === "power_infusion") {
         const max_pi = 4;
         if (activePlayer.value.pi_count < max_pi)
@@ -1480,11 +1271,6 @@ const itemSorting = ref({
     name: "ilvl",
     order: "desc",
 });
-const isCustomItem = (id) => {
-    if (typeof(id) == "object")
-        id = id.id;
-    return typeof(id) == "string" && id.indexOf("custom_") === 0;
-};
 const itemSort = (items, sorting) => {
     if (!sorting || !sorting.name)
         return items;
@@ -1510,8 +1296,8 @@ const itemSort = (items, sorting) => {
     return items.sort((a, b) => {
         let av = _.get(a, sorting.name, null);
         let bv = _.get(b, sorting.name, null);
-        let ac = isCustomItem(a);
-        let bc = isCustomItem(b);
+        let ac = common.isCustomItem(a);
+        let bc = common.isCustomItem(b);
         let result = 0;
 
         if (ac && !bc) return -1;
@@ -1552,7 +1338,7 @@ const itemSort = (items, sorting) => {
 const itemList = computed(() => {
     let data = {
         type: activeGearType.value,
-        slot: loadoutSlotToItemSlot(activeSlot.value),
+        slot: common.loadoutSlotToItemSlot(activeSlot.value),
         list: [],
     };
 
@@ -1966,7 +1752,7 @@ const loadoutExportData = (loadout) => {
     for (let key in loadout) {
         if (loadout[key].item_id) {
             loadout[key] = [loadout[key].item_id, loadout[key].enchant_id ? loadout[key].enchant_id : 0];
-            if (isCustomItem(loadout[key][0]))
+            if (common.isCustomItem(loadout[key][0]))
                 loadout[key].push(customItems.value.find(ci => ci.id == loadout[key][0]));
         }
         else {
@@ -2263,7 +2049,7 @@ const importSixtyUpgrades = (data) => {
             id+= ":"+_item.suffixId;
         let item = getItem(slot, id);
         if (!item)
-            item = items.gear[loadoutSlotToItemSlot(slot)].find(i => i.title == _item.name);
+            item = items.gear[common.loadoutSlotToItemSlot(slot)].find(i => i.title == _item.name);
         if (!item) {
             player.loadout[slot].item_id = null;
             errors.push("Could not find item: "+_item.name);
@@ -2334,7 +2120,7 @@ const importWSE = (data) => {
 
     if (data.race)
         player.race = _.capitalize(data.race);
-    if (raceFaction(player.race) != activeRaid.value.faction)
+    if (common.raceFaction(player.race) != activeRaid.value.faction)
         player.race = convertRace(player.race);
 
     if (data.talents)
@@ -2437,11 +2223,10 @@ watch(() => customItems.value, (value) => {
 });
 watch(() => activeRaid.value.faction, () => {
     for (let player of activeRaid.value.players) {
-        if (raceFaction(player.race) != activeRaid.value.faction)
+        if (common.raceFaction(player.race) != activeRaid.value.faction)
             player.race = convertRace(player.race);
     }
 });
-
 /*
  * Events
  */
@@ -2609,7 +2394,7 @@ onMounted(() => {
                             <div class="form-cols">
                                 <div class="form-item">
                                     <label>Name</label>
-                                    <input type="text" v-model.number="activeRaid.name">
+                                    <input type="text" v-model.number="activeRaid.name" @input="onRaidNameChange">
                                 </div>
                                 <div class="form-item">
                                     <label>Faction</label>
@@ -2939,13 +2724,13 @@ onMounted(() => {
                                        <template v-if="activePlayer.loadout[slot].item_id">
                                             <span
                                                 class="custom-icon"
-                                                v-if="isCustomItem(activePlayer.loadout[slot].item_id)"
+                                                v-if="common.isCustomItem(activePlayer.loadout[slot].item_id)"
                                             >
                                                 <wowicon icon="question_mark" />
                                                 <tooltip>Custom: {{ itemTitle(activePlayer.loadout[slot].item_id) }}</tooltip>
                                             </span>
                                             <a
-                                                :href="gearUrl(activePlayer, slot)"
+                                                :href="common.gearUrl(activePlayer, slot)"
                                                 data-wh-icon-size="large"
                                                 data-whtticon="false"
                                                 @click.prevent
@@ -2957,7 +2742,7 @@ onMounted(() => {
                                         <div
                                             class="paperv paperenchant"
                                             :class="{active: activeSlot == slot && activeGearType == 'enchant'}"
-                                            v-if="items.enchants.hasOwnProperty(loadoutSlotToItemSlot(slot))"
+                                            v-if="items.enchants.hasOwnProperty(common.loadoutSlotToItemSlot(slot))"
                                             @click="paperdollClick(slot, 'enchant')"
                                         >
                                             <a
@@ -3066,7 +2851,7 @@ onMounted(() => {
                                         :key="item.id"
                                         @click="itemClick(item)"
                                     >
-                                        <td class="title" v-if="isCustomItem(item)">
+                                        <td class="title" v-if="common.isCustomItem(item)">
                                             <wowicon icon="question_mark" />
                                             <span class="middle" :class="'quality-'+item.q">
                                                 {{ item.title }}
@@ -3082,7 +2867,7 @@ onMounted(() => {
                                         </td>
                                         <td class="title" v-else>
                                             <a
-                                                :href="itemList.type == 'enchant' ? spellUrl(item.id) : itemUrl(item.id)"
+                                                :href="itemList.type == 'enchant' ? spellUrl(item.id) : common.itemUrl(item.id)"
                                                 :class="'quality-'+_.get(item, 'q', itemList.type == 'enchant' ? 'uncommon' : 'epic')"
                                                 data-whtticon="false"
                                                 target="_blank"
@@ -3588,6 +3373,23 @@ onMounted(() => {
                 </div>
             </div>
         </spotlight>
+
+        <spotlight ref="confirmSpotlight" class="small confirm">
+            <div class="default">
+                <div class="confirm-text">{{ confirmation.text }}</div>
+                <div class="buttons">
+                    <button class="btn btn-primary" @click="confirmationContinue">{{ confirmation.confirm }}</button>
+                    <button class="btn btn-secondary" @click="confirmationCancel">{{ confirmation.abort }}</button>
+                    <button 
+                        v-if="confirmation.showGroupDelete"
+                        class="btn btn-primary btn-group-delete" 
+                        @click="confirmationGroupContinue"
+                    >
+                        {{ confirmation.groupDelete }}
+                    </button>
+                </div>
+            </div>
+        </spotlight>        
 
         <spotlight ref="alertSpotlight" class="small alert">
             <div class="default">

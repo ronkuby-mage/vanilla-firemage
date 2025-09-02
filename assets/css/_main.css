@@ -1312,6 +1312,45 @@ button {
             outline-color: var(--color-primary);
         }
     }
+
+}
+
+.btn-group-delete {
+    border: 2px solid #dc2626 !important;
+    box-shadow: 0 0 0 1px #dc2626;
+    position: relative;
+}
+
+.btn-group-delete:hover {
+    border-color: #b91c1c !important;
+    box-shadow: 0 0 0 1px #b91c1c, 0 0 8px rgba(220, 38, 38, 0.3);
+}
+
+.btn-group-delete:active {
+    border-color: #991b1b !important;
+    box-shadow: 0 0 0 1px #991b1b;
+}
+
+/* Ensure proper spacing in the buttons container when showing group delete */
+.confirm .buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: nowrap; /* Changed from wrap to nowrap */
+    align-items: center;
+}
+
+.confirm .buttons .btn {
+    flex: 0 0 auto;
+    min-width: 80px;
+    white-space: nowrap; /* Prevent text wrapping inside buttons */
+}
+
+/* Handle smaller screens if needed */
+@media (max-width: 600px) {
+    .confirm .buttons {
+        flex-wrap: wrap;
+    }
 }
 
 .buttons {

@@ -350,8 +350,11 @@ impl State {
             };
 
             // MQG haste (Python divides cast portion by 1+MQG)
-            let mqg = if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
-            let cast_time = base_cast / mqg;
+            let mut cast_time: f64 = base_cast;
+            if action != A::Scorch {
+                let mqg = if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
+                cast_time /= mqg;
+            }
 
             let total = continuing_delay + cast_time;
             l.cast_timer = total;

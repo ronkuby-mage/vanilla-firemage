@@ -170,12 +170,12 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
             fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
         }
     } else {
+        if (bufferSpell == Buffer.BUFFER_FIREBALL) {
+            fixedSequence.sequence.push(apl.getAction("None"));
+        }
         fixedSequence.sequence.push(apl.getAction("Fireball"));
         if (havePI) {
             fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
-        }
-        if (bufferSpell == Buffer.BUFFER_FIREBALL) {
-            fixedSequence.sequence.push(apl.getAction("None"));
         }
     }
     if (derivedOpening == OpeningPermutation.MQG && preScorch == PreScorch.PRESCORCH_YES) {
@@ -219,7 +219,7 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
             cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
             cond.values[0].vint = common.auras.COMBUSTION;
             item.condition.conditions.push(cond);
-            if (derivedOpening == OpeningPermutation.MQG) {
+            if (derivedOpening == OpeningPermutation.MQG || derivedOpening == OpeningPermutation.TWO_TRINKETS) {
                 cond = apl.condition();
                 cond.condition_type = apl.condition_type.TRUE;
                 cond.values = [apl.value()];
@@ -358,16 +358,13 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
         if (preScorch == PreScorch.PRESCORCH_NO) {
             bufferSpells.push(Buffer.BUFFER_NOTHING);
         } else {
+            bufferSpells.push(Buffer.BUFFER_FIREBALL);            
             if (encounterDuration >= shortFightThreshold) {
                 bufferSpells.push(Buffer.BUFFER_PYROBLAST);
             }
             if (encounterDuration < mediumFightThreshold) {
                 bufferSpells.push(Buffer.BUFFER_NOTHING);
             }
-            if (encounterDuration < longFightThreshold) {
-                bufferSpells.push(Buffer.BUFFER_FIREBALL);
-            }
-
         }
         bufferSpells.forEach(bufferSpell => {
             let openingPermutations = [];

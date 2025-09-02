@@ -74,6 +74,9 @@ pub struct MageLane {
     pub buff_ticks: [u32; C::NUM_DAMAGE_BUFFS],
     pub pi_timer: [f64; C::MAX_PI],
     pub pi_cooldown: [f64; C::MAX_PI],
+    pub pyro_timer: f64,
+    pub pyro_count: u8,
+    pub pyro_value: f64,
     pub crit_too_late: bool,
     pub hit_chance: f64,
     pub crit_chance: f64,
@@ -99,6 +102,9 @@ impl Default for MageLane {
             buff_ticks: [0; C::NUM_DAMAGE_BUFFS],
             pi_timer: [0.0; C::MAX_PI],
             pi_cooldown: [f64::INFINITY; C::MAX_PI],
+            pyro_timer: f64::INFINITY,
+            pyro_count: 0,
+            pyro_value: 0.0,
             crit_too_late: false,
             hit_chance: 0.99,
             crit_chance: 0.062,
@@ -121,6 +127,7 @@ pub struct PlayerMeta {
     pub nightfall_period: Vec<f64>,
     pub vulnerability: f64,
     pub coe: f64,
+    pub no_debuff_limit: bool,
     pub name: Vec<String>,
 }
 
@@ -295,6 +302,9 @@ impl State {
             for t in &mut l.pi_timer { *t -= dt; }
             for c in &mut l.pi_cooldown { *c -= dt; }
         }
+        if self.meta.no_debuff_limit {
+            for l in &mut self.lanes { l.pyro_timer -= dt; }
+        }
         for t in &mut self.boss.nightfall {
             *t -= dt;
         }
@@ -305,6 +315,14 @@ impl State {
             .iter()
             .enumerate()
             .min_by(|a, b| a.1.cast_timer.total_cmp(&b.1.cast_timer))
+            .map(|(i, _)| i)
+    }
+
+    pub fn next_pyro_lane(&self) -> Option<usize> {
+        self.lanes
+            .iter()
+            .enumerate()
+            .min_by(|a, b| a.1.pyro_timer.total_cmp(&b.1.pyro_timer))
             .map(|(i, _)| i)
     }
 
@@ -636,6 +654,20 @@ impl State {
                 self.boss.scorch_count = (self.boss.scorch_count + 1).min(C::SCORCH_STACK);
             }
         }
+
+        if self.meta.no_debuff_limit && k.is_pyro[spell_type] {
+            let mut tick_damage = k.spell_base[Spell::PyroDot as usize] + k.sp_multiplier[Spell::PyroDot as usize]*(l.spell_power + buff_damage);
+            tick_damage *= k.damage_multiplier[Spell::PyroDot as usize]; // fire power
+            if l.pi_timer.iter().any(|&x| x > 0.0) { tick_damage *= 1.0 + C::POWER_INFUSION; }
+            if is_dmf { tick_damage *= 1.0 + C::DMF_BUFF; }
+            if is_sr { tick_damage *= 1.0 + C::SR_BUFF; }
+            if is_ts { tick_damage *= 1.0 + C::TS_BUFF; }
+            if is_cleaner { tick_damage *= 1.0 + C::UDC_MOD }
+            l.pyro_count = C::PYRO_COUNT;
+            l.pyro_timer = C::PYRO_TIMER;
+            l.pyro_value = tick_damage/(C::PYRO_COUNT as f64);
+        }
+
         if is_fire { l.comb_stack = l.comb_stack.saturating_add(1); }
 
         if self.log_enabled {
@@ -709,6 +741,37 @@ impl State {
         }
     }
 
+    pub fn tick_pyro(&mut self) {
+        let Some(lane) = self.next_pyro_lane() else { return };
+        let dt = self.lanes[lane].pyro_timer;
+        self.subtime(dt); // advance global & subtract dt from all timers
+
+        if !self.in_progress() { return }
+
+        // Snapshot lane and cast type
+        let lanes_len = self.lanes.len();
+        let l = &mut self.lanes[lane];
+        let targeted_all = self.meta.target_slots.len() == lanes_len;
+        let is_target = targeted_all || self.meta.target_slots.iter().any(|&i| i == lane);
+
+        l.pyro_count -= 1;
+        if l.pyro_count > 0 { l.pyro_timer = C::PYRO_TIMER; } else { l.pyro_timer = f64::INFINITY }
+
+        let mut mult = C::COE_MULTIPLIER;
+        if self.boss.scorch_timer > 0.0 { mult *= 1.0 + C::SCORCH_MULTIPLIER*(self.boss.scorch_count as f64); }
+        if self.boss.spell_vulnerability > 0.0 { mult *= 1.0 + C::NIGHTFALL_VULN; }
+
+        let damage = mult * l.pyro_value;
+        self.totals.total_damage += damage;
+        if is_target { self.totals.player_damage += damage; }
+
+        if self.log_enabled {
+            self.log_spell_impact(lane as i32, Spell::PyroDot, damage, 1.0, SpellResult::Hit);
+        } else {
+            self.damage_log.push(DamageAccumulator { time: self.global.running_time, damage: damage});
+        }
+    }
+
     /// One discrete simulation step (faithful to mechanics._advance):
     /// choose the nearest event among: cast finish, spell land, ignite tick, nightfall proc
     /// Priority on ties: cast < spell < tick < proc
@@ -721,27 +784,32 @@ impl State {
             .fold(f64::INFINITY, f64::min);
         let tick_t  = self.boss.tick_timer;
         let proc_t  = self.boss.nightfall.iter().copied().fold(f64::INFINITY, f64::min);
-
+        let pyro_t  = self.lanes.iter().map(|l| l.pyro_timer).fold(f64::INFINITY, f64::min);
 
         // Short-circuit if nothing scheduled
-        if !cast_t.is_finite() && !spell_t.is_finite() && !tick_t.is_finite() && !proc_t.is_finite() {
+        if !cast_t.is_finite() && !spell_t.is_finite() && !tick_t.is_finite() && !proc_t.is_finite() && !pyro_t.is_finite() {
             return;
         }
 
         // Exact Python priority: cast < spell < tick < proc
-        if cast_t <= spell_t && cast_t <= tick_t && cast_t <= proc_t {
+        if cast_t <= spell_t && cast_t <= tick_t && cast_t <= proc_t && cast_t <= pyro_t {
             self.finish_cast(k);
             return;
         }
-        if spell_t <= tick_t && spell_t <= proc_t {
+        if spell_t <= tick_t && spell_t <= proc_t && spell_t <= pyro_t {
             self.land_spell(k, rng);
             return;
         }
-        if tick_t <= proc_t {
+        if tick_t <= proc_t && tick_t <= pyro_t {
             self.tick_ignite(rng);
             return;
         }
-        self.proc_nightfall(k, rng);
+        if proc_t <= pyro_t {
+            self.proc_nightfall(k, rng);
+        } else {
+            self.tick_pyro();            
+        }
+        
     }
 
 }

@@ -118,6 +118,7 @@ const defaultConfig = () => {
         nightfall3: "",
         boss: "None",
         in_comparison: true,
+        no_debuff_limit: true,
     };
 };
 
@@ -2491,7 +2492,11 @@ onMounted(() => {
                                 <input type="checkbox" v-model="activeRaid.config.in_comparison">
                             </checkbox>
                         </div>
-
+                        <div class="form-item">
+                            <checkbox label="No Debuff Limit">
+                                <input type="checkbox" v-model="activeRaid.config.no_debuff_limit">
+                            </checkbox>
+                        </div>
                     </div>
 
                     <div class="form-box config-player" v-if="activePlayer">

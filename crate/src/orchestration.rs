@@ -38,6 +38,7 @@ pub struct Configuration {
     pub target: Vec<usize>,
     pub vary: Vec<usize>,
     pub do_stat_weights: bool,
+    pub no_debuff_limit: bool,
     pub buff_assignments: HashMap<Buff, Vec<usize>>,
     pub pi_count: Vec<usize>,
     pub udc: Vec<usize>,
@@ -59,6 +60,7 @@ impl Configuration {
             target: vec![],
             vary: vec![],
             do_stat_weights: true,
+            no_debuff_limit: true,
             buff_assignments,
             pi_count: vec![],
             udc: vec![],
@@ -252,6 +254,7 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     st.meta.sr_slots = p.buffs.world.get(&WorldBuff::SoulRevival).unwrap().clone().to_vec();
     st.meta.ts_slots = p.buffs.world.get(&WorldBuff::TracesOfSilithyst).unwrap().clone().to_vec();
     st.meta.pi_count = p.config.pi_count.clone();
+    st.meta.no_debuff_limit = p.config.no_debuff_limit.clone();
     st.meta.vulnerability = if p.buffs.boss == BossType::Thaddius { 1.0 + C::THADDIUS_BUFF } else { 1.0 };
     st.meta.nightfall_period = p.config.nightfall.clone();
     st.meta.coe = if p.config.coe { C::COE_MULTIPLIER } else { 1.0 };

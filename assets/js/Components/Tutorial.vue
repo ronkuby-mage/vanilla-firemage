@@ -10,7 +10,7 @@ const tutorialPages = ref([
     {
         title: "Single Target Fire Mage Simulator",
         description: "This tutorial will guide you through the key features of the simulator.  Learn how to set up raids, configure players, and analyze results.",
-        image: "/img/tutorial/page_0.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_0.png",
         points: [
             "Create and manage raid configurations",
             "Automatically populate multiple viable rotations from template",
@@ -21,7 +21,7 @@ const tutorialPages = ref([
     {
         title: "Use Approximate Gear to Build a Template",
         description: "Start by reviewing the preset gear levels.",
-        image: "/img/tutorial/page_2.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_2.png",
         points: [
             "If you find a reasonable prest match to the gear on your mage team, proceed to the next step",
             "Otherwise, manually build out the gear sets for your team",
@@ -31,7 +31,7 @@ const tutorialPages = ref([
     {
         title: "Create Raid from Template",
         description: "Proceed with multiple raid creation.",
-        image: "/img/tutorial/page_3.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_3.png",
         points: [
             "If a preset gear level fit your team, use that (shown)",
             "If you built your team manually, select a 'from existing' template", 
@@ -41,7 +41,7 @@ const tutorialPages = ref([
     {
         title: "Running the Comparison",
         description: "Run the simulation, view results, and switch to the Comparison tab.",
-        image: "/img/tutorial/page_4.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_4.png",
         points: [
             "There could be many (20+) results",
             "Each curve represents the performance of a rotation given the gear and other specified parameters",
@@ -52,7 +52,7 @@ const tutorialPages = ref([
     {
         title: "Prune Losing Rotations",
         description: "Change the raid name for the top rotation(s).",
-        image: "/img/tutorial/page_5.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_5.png",
         points: [
             "Changing the name will flag the simulator to keep the raids",
             "The other raids can be quickly pruned by deleting one and selecting group removal"
@@ -61,7 +61,7 @@ const tutorialPages = ref([
     {
         title: "Review Rotation Logic",
         description: "Each mage will likely be assigned a different rotation.",
-        image: "/img/tutorial/page_7.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_7.png",
         points: [
             "The opening sequence will always run to completion unless an action is not available (on cooldown)",
             "Priority rotations are conditional, some mages may not have any priority rotations",
@@ -71,7 +71,7 @@ const tutorialPages = ref([
     {
         title: "Tweak Gear Sets and Buffs",
         description: "Modify the mage team gear and buffs.",
-        image: "/img/tutorial/page_8.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_8.png",
         points: [
             "If a preset was used, modify the gear sets for major upgrades",
             "Buffs should also be fine-tuned to what is expected during raid"
@@ -80,7 +80,7 @@ const tutorialPages = ref([
     {
         title: "Generate Stat Weights",
         description: "Rerun the fine-tuned raid to generate stat weights.",
-        image: "/img/tutorial/page_9.png",
+        image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_9.png",
         points: [
             "The number of iterations should be increased to 300k-1M",
             "Spell power per hit can be ignored unless hit is below 98%",

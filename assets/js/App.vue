@@ -1,5 +1,6 @@
 <script setup>
 import SimContainer from "./sim_container";
+import Tutorial from "./Components/Tutorial.vue";
 import { computed, ref, reactive, watch, onMounted, nextTick } from "vue";
 import common from "./common";
 import icons from "./icons";
@@ -118,6 +119,7 @@ const defaultConfig = () => {
         nightfall3: "",
         boss: "None",
         in_comparison: true,
+        no_debuff_limit: true,
     };
 };
 
@@ -844,6 +846,23 @@ const notify = (obj) => {
         setTimeout(() => {
             notifications.value = notifications.value.filter(n => n.id != obj.id);
         }, obj.timer);
+    }
+};
+
+/*
+ * Tutorial
+ */
+const tutorialSpotlight = ref();
+const tutorialHasBeenSeen = ref(false);
+const openTutorial = () => {
+    if (tutorialSpotlight.value) {
+        tutorialHasBeenSeen.value = true;
+        tutorialSpotlight.value.open();
+    }
+};
+const closeTutorial = () => {
+    if (tutorialSpotlight.value) {
+        tutorialSpotlight.value.close();
     }
 };
 
@@ -2381,12 +2400,19 @@ onMounted(() => {
                         Import
                     </button>
                     <div class="github">
+                        <button 
+                            class="tutorial-button" 
+                            :class="{ 'tutorial-seen': tutorialHasBeenSeen }"
+                            @click="openTutorial" 
+                            title="Tutorial"
+                        >
+                            <img src="/img/help.svg" />
+                        </button>
                         <a href="https://github.com/ronkuby-mage/vanilla-firemage" target="_blank">
                             <img src="/img/github-mark.svg" alt="Github">
                         </a>
                     </div>
                 </div>
-
                 <div class="config" v-if="activeTab == 'config'">
                     <div class="form-box config-raid">
                         <div class="title">Raid config</div>
@@ -2491,7 +2517,11 @@ onMounted(() => {
                                 <input type="checkbox" v-model="activeRaid.config.in_comparison">
                             </checkbox>
                         </div>
-
+                        <div class="form-item">
+                            <checkbox label="No Debuff Limit">
+                                <input type="checkbox" v-model="activeRaid.config.no_debuff_limit">
+                            </checkbox>
+                        </div>
                     </div>
 
                     <div class="form-box config-player" v-if="activePlayer">
@@ -3475,6 +3505,8 @@ onMounted(() => {
                 </div>
             </div>
         </spotlight>
-
+        <spotlight ref="tutorialSpotlight" class="large">
+            <Tutorial @close="closeTutorial" />
+        </spotlight>
     </div>
 </template>

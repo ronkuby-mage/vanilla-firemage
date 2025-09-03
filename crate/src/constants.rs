@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Spell { Scorch = 0, Pyroblast = 1, Fireball = 2, FireBlast = 3, Frostbolt = 4 }
+pub enum Spell { Scorch = 0, Pyroblast = 1, Fireball = 2, FireBlast = 3, Frostbolt = 4, PyroDot = 5 }
 
 impl fmt::Display for Spell {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -22,6 +22,7 @@ impl fmt::Display for Spell {
             Spell::Pyroblast => write!(f, "Pyroblast"),
             Spell::FireBlast => write!(f, "Fire Blast"),
             Spell::Frostbolt => write!(f, "Frostbolt"),
+            Spell::PyroDot => write!(f, "Pyroblast DoT"),
         }
     }
 }
@@ -159,7 +160,7 @@ pub enum Buff { Sapp = 0, Toep = 1, Zhc = 2, Mqg = 3 }
 
 pub const LOG: bool = true;
 
-pub const NUM_SPELLS: usize = 5;          // Scorch, Pyro, Fireball, FireBlast, Frostbolt
+pub const NUM_SPELLS: usize = 6;          // Scorch, Pyro, Fireball, FireBlast, Frostbolt, PyroDot
 pub const NUM_ACTIONS: usize = 12;         // includes GCD + instants
 
 // --- Global mechanical constants (mostly invariant during a run) ---
@@ -222,6 +223,9 @@ pub const MAX_QUEUED_SPELLS: usize = 4;
 pub const MAX_DEBUFF_HISTORY: usize = 10;
 pub const MAX_PI: usize = 4;
 
+pub const PYRO_COUNT: u8 = 4;
+pub const PYRO_TIMER: f64 = 3.0;
+
 /// How many opening Scorches are required by number of mages (index by num_mages)
 pub const SCORCHES_BY_MAGES: [i32; 13] = [9000, 6, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1];
 
@@ -266,6 +270,7 @@ pub struct Constants {
     pub damage_multiplier: [f64; NUM_SPELLS],
     pub spell_base: [f64; NUM_SPELLS],
     pub spell_range: [f64; NUM_SPELLS],
+    pub is_pyro: [bool; NUM_SPELLS],
     pub is_scorch: [bool; NUM_SPELLS],
     pub is_fire: [bool; NUM_SPELLS],
     pub incin_bonus: [f64; NUM_SPELLS],
@@ -285,14 +290,14 @@ pub struct Constants {
 impl Constants {
     pub fn new(cfg: &ConstantsConfig) -> Self {
         // Base SP and damage multipliers
-        let mut sp_multiplier = [0.428_571_429, 1.0, 1.0, 0.428_571_429, 0.814_285_714];
-        let mut damage_multiplier = [1.1, 1.1, 1.1, 1.1, 1.0]; // fire power; frostbolt starts 1.0
+        let mut sp_multiplier = [0.428_571_429, 1.0, 1.0, 0.428_571_429, 0.814_285_714, 0.6];
+        let mut damage_multiplier = [1.1, 1.1, 1.1, 1.1, 1.0, 1.1]; // fire power; frostbolt starts 1.0
 
         // Base and ranges: simplified or detailed
         let (mut spell_base, mut spell_range) = if cfg.simple_spell {
-            ([250.0, 900.0, 750.0, 500.0, 500.0], [0.0, 0.0, 0.0, 0.0, 0.0])
+            ([250.0, 900.0, 750.0, 500.0, 500.0, 268.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         } else {
-            ([237.0, 716.0, 596.0, 446.0, 515.0], [43.0, 174.0, 164.0, 78.0, 40.0])
+            ([237.0, 716.0, 596.0, 446.0, 515.0, 268.0], [43.0, 174.0, 164.0, 78.0, 40.0, 0.0])
         };
 
         // Rank overrides
@@ -321,7 +326,7 @@ impl Constants {
         }
 
         // Cast times (base, before MQG/gcd math)
-        let mut cast_time = [1.5, 6.0, 3.0, 0.0, 3.0];
+        let mut cast_time = [1.5, 6.0, 3.0, 0.0, 3.0, 0.0];
         if cfg.frostbolt_talented {
             cast_time[Spell::Frostbolt as usize] = 2.5;
         }
@@ -330,14 +335,15 @@ impl Constants {
         }
 
         // Projectile/travel times (to impact)
-        let spell_travel = [0.0, 0.875, 0.875, 0.0, 0.75];
+        let spell_travel = [0.0, 0.875, 0.875, 0.0, 0.75, 0.0];
 
         // Flags for spell schools
-        let is_scorch = [true, false, false, false, false];
-        let is_fire = [true, true, true, true, false];
+        let is_pyro = [false, true, false, false, false, false]; 
+        let is_scorch = [true, false, false, false, false, false];
+        let is_fire = [true, true, true, true, false, true];
 
         // Incinerate talent bonus to Scorch/Fire Blast crit chance
-        let incin_bonus = if cfg.incinerate { [0.04, 0.0, 0.0, 0.04, 0.0] } else { [0.0; NUM_SPELLS] };
+        let incin_bonus = if cfg.incinerate { [0.04, 0.0, 0.0, 0.04, 0.0, 0.0] } else { [0.0; NUM_SPELLS] };
 
         // Crit/ignite math
         let ignite_damage = 0.2;
@@ -349,6 +355,7 @@ impl Constants {
             damage_multiplier,
             spell_base,
             spell_range,
+            is_pyro,
             is_scorch,
             is_fire,
             incin_bonus,

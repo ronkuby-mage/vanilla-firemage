@@ -14,6 +14,7 @@ use serde_json::Value;
 pub struct LegacyConfig {
     pub raid_id: Option<String>, // In case we need it
     pub is_active_raid: Option<bool>,
+    pub no_debuff_limit: Option<bool>,
     pub duration: Option<f64>,
     pub duration_variance: Option<f64>,
     pub curse_of_elements: Option<bool>,
@@ -251,12 +252,14 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     let nightfall: Vec<f64> = [cfg.nightfall1, cfg.nightfall2, cfg.nightfall3].into_iter().filter_map(|opt| opt.as_ref().and_then(parse_f64)).map(|f| f.max(1.0)).collect();
     let coe:bool = if cfg.curse_of_elements.unwrap_or(false) { true } else {false};
     let dsw:bool = if cfg.is_active_raid.unwrap_or(false) { true } else {false};
+    let ndl:bool = if cfg.no_debuff_limit.unwrap_or(false) { true } else {false};
 
     let config = Configuration {
         num_mages: nm,
         target: target,
         vary: vary,
         do_stat_weights: dsw,
+        no_debuff_limit: ndl,
         buff_assignments: buff_assignments,
         pi_count: pi_count,
         udc: udc,

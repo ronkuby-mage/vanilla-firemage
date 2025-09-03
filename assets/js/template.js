@@ -372,7 +372,7 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                 if (encounterDuration < longFightThreshold) {
                     openingPermutations.push(OpeningPermutation.MQG);
                 }
-                if (encounterDuration >= shortFightThreshold && encounterDuration < longFightThreshold) {
+                if (encounterDuration >= shortFightThreshold) {
                     openingPermutations.push(OpeningPermutation.TWO_TRINKETS);
                 }
                 if (encounterDuration >= mediumFightThreshold) {
@@ -467,7 +467,6 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                 } else {
                     sustainPermutations = getSustainPermutations(staticTime, templateRaid.players.length, averageCrit);
                 }
-                console.log("My perms =", sustainPermutations)
 
                 sustainPermutations.forEach(sustainPermutation => {
                     let desc = [];

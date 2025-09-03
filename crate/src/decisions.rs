@@ -346,8 +346,8 @@ impl AdaptiveMage {
             
             AplValueType::TargetAuraStacks => {
                 match value.vint {
-                    22959 => st.boss.scorch_count as f64, // FIRE_VULNERABILITY (scorch stacks)
-                    12654 => st.boss.ignite_count as f64,     // Ignite stacks
+                    22959 => if st.boss.scorch_timer > 0.0 { st.boss.scorch_count as f64 } else { 0.0 }, // FIRE_VULNERABILITY (scorch stacks)
+                    12654 => if st.boss.ignite_timer > 0.0 { st.boss.ignite_count as f64 } else { 0.0 },     // Ignite stacks
                     _ => 0.0,
                 }
             }

@@ -24,7 +24,7 @@ const spellUrl = (id) => {
     return "https://www.wowhead.com/classic/spell="+id;
 };
 const itemTitle = (id) => {
-    let item = getItem(id);
+    let item = common.getItem(id);
     return item ? item.title : null;
 };
 const convertRace = (from) => {
@@ -1419,7 +1419,7 @@ const itemClick = (item) => {
     }
     else {
         if (key == "item_id" && activeSlot.value == "off_hand") {
-            let mh = getItem("main_hand", activePlayer.value.loadout["main_hand"].item_id);
+            let mh = common.getItem("main_hand", activePlayer.value.loadout["main_hand"].item_id);
             if (mh.twohand)
                 return;
         }
@@ -1436,7 +1436,7 @@ const itemClick = (item) => {
                 }
                 // Unique category
                 else {
-                    let otherItem = getItem(other, activePlayer.value.loadout[other].item_id);
+                    let otherItem = common.getItem(other, activePlayer.value.loadout[other].item_id);
                     if (otherItem && otherItem.unique && otherItem.unique === item.unique)
                         return;
                 }
@@ -2066,7 +2066,7 @@ const importSixtyUpgrades = (data) => {
         let id = _item.id;
         if (_item.hasOwnProperty("suffixId"))
             id+= ":"+_item.suffixId;
-        let item = getItem(slot, id);
+        let item = common.getItem(slot, id);
         if (!item)
             item = items.gear[common.loadoutSlotToItemSlot(slot)].find(i => i.title == _item.name);
         if (!item) {
@@ -2118,7 +2118,7 @@ const importWSE = (data) => {
         if (!_item)
             continue;
         let slot = slots[i];
-        let item = getItem(slot, _item.id);
+        let item = common.getItem(slot, _item.id);
         if (!item) {
             player.loadout[slot].item_id = null;
             errors.push("Could not find item: "+_item.id);

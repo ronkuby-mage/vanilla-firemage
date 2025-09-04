@@ -1779,13 +1779,13 @@ const loadoutExportData = (loadout) => {
         }
     }
     let data = [];
-    for (let key of loadoutSlots())
+    for (let key of common.loadoutSlots())
         data.push(loadout[key]);
     return data;
 };
 const loadoutImportData = (data) => {
-    let loadout = baseLoadout();
-    let slots = loadoutSlots();
+    let loadout = common.baseLoadout();
+    let slots = common.loadoutSlots();
     for (let i in slots) {
         loadout[slots[i]] = {
             item_id: (data[i][0] ? data[i][0] : null),
@@ -2110,7 +2110,7 @@ const importWSE = (data) => {
         throw("No items found");
 
     let player = defaultPlayer();
-    let slots = loadoutSlots();
+    let slots = common.loadoutSlots();
     let errors = [];
 
     for (let i in data.gear.items) {

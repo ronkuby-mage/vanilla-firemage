@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch } from "vue";
 import { mage as talentTree } from "../talents";
 
-const props = defineProps(["modelValue", "level"]);
+const props = defineProps(["modelValue", "level", "readonly"]);
 const emits = defineEmits(["update:modelValue"]);
 
 const maxTalents = props.level ? Math.max(0, props.level - 9) : 51;
@@ -73,6 +73,8 @@ const talentUrl = (talent) => {
     return "https://www.wowhead.com/classic/spell="+talent.spellIds[points ? points-1 : 0];
 };
 const clickTalent = (talent, rightclick) => {
+    if (props.readonly) return; // Exit early if readonly
+
     let index = _.findIndex(talentTreeFlat.value, {name: talent.name});
     if (index == -1)
         return 0;
@@ -128,6 +130,8 @@ const clickTalent = (talent, rightclick) => {
     emits("update:modelValue", arr);
 };
 const resetTree = (tree) => {
+    if (props.readonly) return; // Exit early if readonly
+
     let arr = props.modelValue;
 
     let start = 0, end;
@@ -144,6 +148,7 @@ const resetTree = (tree) => {
     emits("update:modelValue", arr);
 };
 const reset = () => {
+    if (props.readonly) return; // Exit early if readonly
     emits("update:modelValue", new Array(maxTalents).fill(0));
 };
 

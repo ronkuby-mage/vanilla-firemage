@@ -61,7 +61,7 @@ export default {
             //{ key: "Sequence", title: "Sequence" },
             //{ key: "ArcaneMissiles", title: "Cast: Arcane Missiles" },
             //{ key: "ArcanePower", title: "Cast: Arcane Power", talent: "arcane_power" },
-            //{ key: "Berserking", title: "Cast: Berserking", race: "Troll" },
+            { key: "Berserking", title: "Cast: Berserking", race: "Troll" },
             //{ key: "ColdSnap", title: "Cast: Cold Snap", talent: "cold_snap" },
             { key: "Combustion", title: "Cast: Combustion", talent: "combustion" },
             //{ key: "Evocation", title: "Cast: Evocation" },
@@ -88,7 +88,7 @@ export default {
             { key: "UnstablePower", title: "trinket", item: items.ids.TRINKET_ZHC },
             //{ key: "Innervate", title: "External: Innervate" },
             //{ key: "ManaTide", title: "External: Mana Tide", faction: "horde" },
-            { key: "PowerInfusion", title: "External: Power Infusion" },
+            { key: "PowerInfusion", title: "External: Power Infusion", pi_required: true },
         ];
     },
     defaultActions() {

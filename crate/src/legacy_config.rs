@@ -67,6 +67,7 @@ pub struct LegacyBuffs {
 pub struct LegacyPlayer {
     pub name: Option<String>,
     pub race: Option<String>,   // e.g., "Gnome", "Undead", etc.
+    pub berserk: f64,
     pub talents: Vec<u8>, // not used in backend yet
 
     pub stats: LegacyStats,
@@ -137,6 +138,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     };
     let mut racials: Vec<Racial> = vec![Racial::Other; nm];
     let mut name: Vec<String> = vec![String::new(); nm];
+    let mut berserk: Vec<f64> = vec![0.0; nm];
 
     for (i, p) in cfg.players.iter().enumerate() {
         stats.spell_power[i] = p.stats.sp;
@@ -147,6 +149,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         // Map race string → Racial enum
         racials[i] = p.race.as_deref().map(racial_from_str).unwrap_or(Racial::Other);
         name[i] = p.name.clone().unwrap_or_default();
+        if racials[i] == Racial::Troll { berserk[i] = p.berserk / 100.0; }
     }
 
     // --- Per-mage buff assignments (index lists) ---
@@ -224,6 +227,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         auras_lock_atiesh: auras_lock_atiesh,
         auras_boomkin: auras_boomkin,
         racial: racials,
+        berserk: berserk,
     };
     
     let mut buff_assignments: HashMap<Buff, Vec<usize>> = HashMap::new();

@@ -27,6 +27,8 @@ fn action_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
         return st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() <= 0.0;
     } else if action == Action::Combustion {
         return st.lanes[lane].comb_cooldown <= 0.0;
+    } else if action == Action::Berserking {
+        return st.lanes[lane].berserk_cooldown <= 0.0;
     }
 
     true
@@ -283,6 +285,7 @@ impl AdaptiveMage {
                     29977 => if st.lanes[lane].comb_cooldown > 0.0 { 1.0 } else { 0.0 }, // COMBUSTION
                     10199 => if st.lanes[lane].fb_cooldown > 0.0 { 1.0 } else { 0.0 },   // FIRE_BLAST
                     10060 => if st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() > 0.0 { 1.0 } else { 0.0 },   // PI
+                    20554 => if st.lanes[lane].berserk_cooldown > 0.0 { 1.0 } else { 0.0 },
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             if st.lanes[lane].buff_cooldown[buff as usize] > 0.0 { 1.0 } else { 0.0 }
@@ -298,6 +301,7 @@ impl AdaptiveMage {
                     29977 => st.lanes[lane].comb_cooldown.max(0.0), // COMBUSTION
                     10199 => st.lanes[lane].fb_cooldown.max(0.0),   // FIRE_BLAST
                     10060 => st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap().max(0.0),
+                    20554 => st.lanes[lane].berserk_cooldown,
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             st.lanes[lane].buff_cooldown[buff as usize].max(0.0)
@@ -312,6 +316,7 @@ impl AdaptiveMage {
                 match value.vint {
                     29977 => st.lanes[lane].comb_left as f64, // COMBUSTION - use comb_left
                     10060 => if st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap() > 0.0 { 1.0 } else { 0.0 },
+                    20554 => if st.lanes[lane].berserk_timer > 0.0 {1.0} else { 0.0 },
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             if st.lanes[lane].buff_timer[buff as usize] > 0.0 { 1.0 } else { 0.0 }
@@ -325,7 +330,8 @@ impl AdaptiveMage {
             AplValueType::PlayerAuraDuration => {
                 match value.vint {
                     29977 => 0.0, // COMBUSTION - no duration for combustion aura
-                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap(),                 
+                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap(),  
+                    20554 => st.lanes[lane].berserk_timer,
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             st.lanes[lane].buff_timer[buff as usize].max(0.0)

@@ -127,6 +127,7 @@ impl FromJsonString for AplValueType {
 // Helper function to convert APL action key string to Action enum
 fn apl_key_to_action(key: &str) -> Action {
     match key {
+        "Berserking" => Action::Berserking,
         "Combustion" => Action::Combustion,
         "EphemeralPower" => Action::Toep,
         "EssenceOfSapphiron" => Action::Sapp,

@@ -177,6 +177,7 @@ const defaultPlayer = () => {
         name: "Player",
         race: "Undead",
         level: 60,
+        berserk: 10,
         id: common.uuid(),        
         stats: common.baseStats("Undead"),
         loadout: common.baseLoadout(),
@@ -1148,6 +1149,13 @@ const raceOptions = computed(() => {
         { value: "Troll", title: "Troll" },
         { value: "Undead", title: "Undead" },
     ];
+});
+const berserkOptions = computed(() => {
+    const options = [];
+    for (let i = 10; i <= 30; i += 2) {
+        options.push({ value: i, title: `${i}%` });
+    }
+    return options;
 });
 const talentPreset = ref(null);
 const talentPresetOptions = computed(() => {
@@ -2536,6 +2544,10 @@ onMounted(() => {
                                     <label>Race</label>
                                     <select-simple v-model="activePlayer.race" :options="raceOptions" />
                                 </div>
+                                    <div class="form-item" v-if="activePlayer.race === 'Troll'">
+                                        <label>Berserk</label>
+                                        <select-simple v-model="activePlayer.berserk" :options="berserkOptions" />
+                                    </div>
                             </div>
                             <div class="form-item">
                                 <label>Raid Buffs</label>

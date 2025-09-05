@@ -28,6 +28,7 @@ pub struct Buffs {
     pub auras_lock_atiesh: Vec<usize>,
     pub auras_boomkin: Vec<usize>,
     pub racial: Vec<Racial>,
+    pub berserk: Vec<f64>,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct Timing { pub duration_mean: f64, pub duration_sigma: f64, pub initial_delay: f64, pub recast_delay: f64, pub reaction_time: f64}
@@ -259,6 +260,7 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     st.meta.nightfall_period = p.config.nightfall.clone();
     st.meta.coe = if p.config.coe { C::COE_MULTIPLIER } else { 1.0 };
     st.meta.name = p.config.name.clone();
+    st.meta.berserk_slots = p.buffs.berserk.clone();
     st.boss.nightfall = p.config.nightfall.clone(); // start the swing timers
     st.boss.dragonling_start = p.config.dragonling;
 
@@ -290,6 +292,7 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         for slot in 0..pis.min(C::MAX_PI) {
             st.lanes[lane_idx].pi_cooldown[slot] = 0.0;
         }
+        if st.meta.berserk_slots[lane_idx] > 0.0 { st.lanes[lane_idx].berserk_cooldown = 0.0}
     }
     st.subtime(overall_delay); // set delay after all time initializations
 

@@ -30,6 +30,8 @@ const filterOptions = (options) => {
             return false;
         if (opt.key == "Sequence" && props.deletable)
             return false;
+        if (opt.hasOwnProperty("pi_required") && props.player.pi_count < 1)
+            return false;
         return true;
     };
 

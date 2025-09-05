@@ -301,7 +301,7 @@ impl AdaptiveMage {
                     29977 => st.lanes[lane].comb_cooldown.max(0.0), // COMBUSTION
                     10199 => st.lanes[lane].fb_cooldown.max(0.0),   // FIRE_BLAST
                     10060 => st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap().max(0.0),
-                    20554 => st.lanes[lane].berserk_cooldown,
+                    20554 => st.lanes[lane].berserk_cooldown.max(0.0),
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             st.lanes[lane].buff_cooldown[buff as usize].max(0.0)
@@ -330,8 +330,8 @@ impl AdaptiveMage {
             AplValueType::PlayerAuraDuration => {
                 match value.vint {
                     29977 => 0.0, // COMBUSTION - no duration for combustion aura
-                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap(),  
-                    20554 => st.lanes[lane].berserk_timer,
+                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap().max(0.0),  
+                    20554 => st.lanes[lane].berserk_timer.max(0.0),
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
                             st.lanes[lane].buff_timer[buff as usize].max(0.0)

@@ -126,6 +126,41 @@ const defaultConfig = () => {
 const defaultBuffs = () => {
     return {
         // RAID
+        arcane_intellect: false,
+        imp_mark_of_the_wild: false,
+        blessing_of_kings: false,
+
+        // WORLD
+        songflower: false,
+        rallying_cry: false,
+        dire_maul_tribute: false,
+        spirit_of_zandalar: false,
+        // World snaphot
+        dmf_dmg: false,
+        soul_revival: false,
+        traces_of_silithyst: false,
+
+        // CONSUMES
+        flask_of_supreme_power: false,
+        infallible_mind: false,
+        gift_of_stormwind: false,
+        elixir_greater_arcane: false,
+        elixir_greater_firepower: false,
+        brilliant_wizard_oil: false,       // "none" | "brilliant" | "blessed"
+        blessed_wizard_oil: false,       // "none" | "brilliant" | "blessed"
+        very_berry_cream: false,
+        runn_tum_tuber: false,             // "none" | "runn_tum_tuber" | ...
+
+        // AURAS (per-player toggles if your UI exposes them)
+        atiesh_mage: 0,
+        atiesh_warlock: 0,
+        moonkin_aura: false,
+    };
+};
+
+const presetBuffs = () => {
+    return {
+        // RAID
         arcane_intellect: true,
         imp_mark_of_the_wild: true,
         blessing_of_kings: true,
@@ -448,6 +483,7 @@ const createRaidsFromPreset = () => {
         player.name = `Mage${i}`;
         player.race = faction === 'Alliance' ? 'Gnome' : 'Undead';
         player.loadout = _.cloneDeep(presetLoadout.loadout);
+        player.buffs = _.cloneDeep(presetBuffs());
         if (gearLevel.includes('Era')) {
             player.buffs.atiesh_mage = Math.min(numMages - 1, 4);
             player.buffs.atiesh_warlock = Math.max(Math.min(5 - numMages, 2), 0);
@@ -591,7 +627,7 @@ const simBuffs = (player) => {
     if (player.buffs.imp_mark_of_the_wild)
         buffs.imp_mark_of_the_wild = true;
     if (player.buffs.blessing_of_kings && faction == "Alliance")
-        buffs. blessing_of_kings = true;
+        buffs.blessing_of_kings = true;
 
     // world buffs
     if (player.buffs.rallying_cry)
@@ -666,7 +702,7 @@ const simConfig = (raid = null) => {
 
     config.players = [];
     for (let p of raid.players) {
-        let player = defaultPlayer();
+        let player = _.cloneDeep(defaultPlayer());
         for (var key in player)
             player[key] = _.cloneDeep(p[key]);
         player.stats = simStats(p);
@@ -685,7 +721,7 @@ const runSingle = () => {
     config.raid_name = activeRaid.value.name;
     config.is_active_raid = true;
     
-    console.log('[App] Running single iteration with config:', config);
+    console.log('[App] Running config single iteration with config:', config);
 
     const sc = new SimContainer(settings.threads, 1, config, r => {
         isRunning.value = false;

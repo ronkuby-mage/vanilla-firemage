@@ -276,7 +276,6 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         l.spell_power = p.stats.spell_power[i];
         // Buff availability: PI, trinkets that are assigned get 0 cooldown to open
         for cooldown in l.buff_cooldown.iter_mut() { *cooldown = f64::INFINITY; }
-        //if st.meta.pi_slots.iter().any(|&idx| idx == i) { l.buff_cooldown[Buff::PowerInfusion as usize] = 0.0; }
         // Others could come from config similarly
     }
 
@@ -292,7 +291,7 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         for slot in 0..pis.min(C::MAX_PI) {
             st.lanes[lane_idx].pi_cooldown[slot] = 0.0;
         }
-        if st.meta.berserk_slots[lane_idx] > 0.0 { st.lanes[lane_idx].berserk_cooldown = 0.0}
+        if st.meta.berserk_slots[lane_idx] > 0.0 { st.lanes[lane_idx].berserk_cooldown = 0.0 }
     }
     st.subtime(overall_delay); // set delay after all time initializations
 

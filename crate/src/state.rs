@@ -1,5 +1,7 @@
 //! state.rs — dynamic per-simulation state + mechanics (faithful to Python)
 
+use core::f64;
+
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use crate::constants::{self as C, Buff};
@@ -74,6 +76,8 @@ pub struct MageLane {
     pub buff_ticks: [u32; C::NUM_DAMAGE_BUFFS],
     pub pi_timer: [f64; C::MAX_PI],
     pub pi_cooldown: [f64; C::MAX_PI],
+    pub berserk_timer: f64,
+    pub berserk_cooldown: f64,
     pub pyro_timer: f64,
     pub pyro_count: u8,
     pub pyro_value: f64,
@@ -102,6 +106,8 @@ impl Default for MageLane {
             buff_ticks: [0; C::NUM_DAMAGE_BUFFS],
             pi_timer: [0.0; C::MAX_PI],
             pi_cooldown: [f64::INFINITY; C::MAX_PI],
+            berserk_timer: 0.0,
+            berserk_cooldown: f64::INFINITY,
             pyro_timer: f64::INFINITY,
             pyro_count: 0,
             pyro_value: 0.0,
@@ -123,6 +129,7 @@ pub struct PlayerMeta {
     pub sr_slots: Vec<usize>,
     pub ts_slots: Vec<usize>,
     pub cleaner_slots: Vec<usize>,
+    pub berserk_slots: Vec<f64>,
     pub target_slots: Vec<usize>,
     pub nightfall_period: Vec<f64>,
     pub vulnerability: f64,
@@ -176,6 +183,11 @@ fn buff_string(mage_lane: &mut MageLane) -> String {
     }
     if mage_lane.pi_timer.iter().cloned().reduce(f64::max).unwrap() > 0.0 {
         buffs.push_str("PI");
+    } else {
+        buffs.push_str("  ");
+    }
+    if mage_lane.berserk_timer > 0.0 {
+        buffs.push_str("BSK");
     } else {
         buffs.push_str("  ");
     }
@@ -301,6 +313,8 @@ impl State {
             for c in &mut l.buff_cooldown { *c -= dt; }
             for t in &mut l.pi_timer { *t -= dt; }
             for c in &mut l.pi_cooldown { *c -= dt; }
+            l.berserk_cooldown -= dt;
+            l.berserk_timer -= dt;
         }
         if self.meta.no_debuff_limit {
             for l in &mut self.lanes { l.pyro_timer -= dt; }
@@ -370,8 +384,11 @@ impl State {
             // MQG haste (Python divides cast portion by 1+MQG)
             let mut cast_time: f64 = base_cast;
             if action != A::Scorch {
-                let mqg = if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
-                cast_time /= mqg;
+                let mut haste: f64 = 1.0;
+                haste *= if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
+                haste *= if l.berserk_timer > 0.0 { 1.0 + self.meta.berserk_slots[lane] } else { 1.0 };
+                cast_time /= haste;
+                cast_time = cast_time.max(C::GLOBAL_COOLDOWN);
             }
 
             let total = continuing_delay + cast_time;
@@ -404,7 +421,7 @@ impl State {
         let action = l.cast_type;
 
         // 1) transfer to spell stage if it's a non-instant 
-        let is_instant = matches!(action, A::Combustion | A::Sapp | A::Toep | A::Zhc | A::Mqg | A::PowerInfusion | A::Gcd);
+        let is_instant = matches!(action, A::Combustion | A::Sapp | A::Toep | A::Zhc | A::Mqg | A::PowerInfusion | A::Berserking | A::Gcd);
         if !is_instant {
             // map Action → Spell index
             let spell = match action {
@@ -466,6 +483,11 @@ impl State {
                     // start active duration and cooldown
                     l.pi_timer[slot] = C::PI_DURATION;
                     l.pi_cooldown[slot] = C::PI_COOLDOWN;
+                }
+                A::Berserking => {
+                    // start active duration and cooldown
+                    l.berserk_timer = C::BERSERK_DURATION;
+                    l.berserk_cooldown = C::BERSERK_COOLDOWN;
                 }
                 _ => {}
             }

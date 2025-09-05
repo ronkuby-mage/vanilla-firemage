@@ -44,6 +44,7 @@ pub enum Action {
     Zhc,
     Mqg,
     PowerInfusion,
+    Berserking,
 }
 
 impl fmt::Display for Action {
@@ -60,7 +61,8 @@ impl fmt::Display for Action {
             Action::Toep => write!(f, "ToEP"),
             Action::Zhc => write!(f, "ZHC"),
             Action::Mqg => write!(f, "MQG"),
-            Action::PowerInfusion => write!(f, "Power Infusion")
+            Action::PowerInfusion => write!(f, "Power Infusion"),
+            Action::Berserking => write!(f, "Berserking")
         }
     }
 }
@@ -145,7 +147,7 @@ impl Racial {
 
 impl Action {
     #[inline]
-    pub fn is_instant(self) -> bool { matches!(self, Action::Combustion | Action::Sapp | Action::Toep | Action::Zhc | Action::Mqg | Action::PowerInfusion | Action::Gcd) }
+    pub fn is_instant(self) -> bool { matches!(self, Action::Combustion | Action::Sapp | Action::Toep | Action::Zhc | Action::Mqg | Action::PowerInfusion | Action::Berserking | Action::Gcd) }
 }
 
 impl Action {
@@ -187,6 +189,8 @@ pub const BUFF_DURATION: [f64; NUM_BUFFS] = [20.0, 15.0, 20.0, 20.0];
 pub const BUFF_COOLDOWN: [f64; NUM_BUFFS] = [120.0, 90.0, 120.0, 300.0];
 pub const PI_DURATION: f64 = 15.0;
 pub const PI_COOLDOWN: f64 = 180.0;
+pub const BERSERK_DURATION: f64 = 10.0;
+pub const BERSERK_COOLDOWN: f64 = 180.0;
 
 /// Flat damage added per spell hit while active (Sapp, TOEP, ZHC)
 pub const BUFF_DAMAGE: [f64; NUM_DAMAGE_BUFFS] = [130.0, 175.0, 204.0];

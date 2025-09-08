@@ -385,9 +385,9 @@ impl State {
             let mut cast_time: f64 = base_cast;
             if action != A::Scorch {
                 let mut haste: f64 = 1.0;
-                haste *= if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
-                haste *= if l.berserk_timer > 0.0 { 1.0 + self.meta.berserk_slots[lane] } else { 1.0 };
-                cast_time /= haste;
+                haste /= if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
+                haste *= if l.berserk_timer > 0.0 { 1.0 - self.meta.berserk_slots[lane] } else { 1.0 };
+                cast_time *= haste;
                 cast_time = cast_time.max(C::GLOBAL_COOLDOWN);
             }
 

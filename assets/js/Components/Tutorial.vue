@@ -23,9 +23,12 @@ const tutorialPages = ref([
         description: "Start by reviewing the preset gear levels.",
         image: "https://ronkuby-mage.github.io/vanilla-firemage/img/tutorial/page_2.png",
         points: [
+            "If you are using a preset, the player config settings will be automatically populated with full world buffs and a PI for each mage",
+            "Phase appropriate trinket combinations with rotation adjustments are modeled for a preset template",
+            "For both the preset and existing templates, raid settings from the currently selected raid will be used",
             "If you find a reasonable preset match to the gear on your mage team, proceed to the next step",
             "Otherwise, manually build out the gear sets for your team",
-            "If you are not using a preset, you must also speicify the player config settings for each mage"
+            "If you are not using a preset, you must also specify the player config settings for each mage",
         ]
     }, 
     {

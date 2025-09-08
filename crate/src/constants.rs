@@ -230,6 +230,10 @@ pub const MAX_PI: usize = 4;
 pub const PYRO_COUNT: u8 = 4;
 pub const PYRO_TIMER: f64 = 3.0;
 
+pub const T3_6P_CHANCE: f64 = 0.2;
+pub const T3_6P_DAMAGE: f64 = 200.0;
+pub const T3_6P_TIMER: f64 = 30.0;
+
 /// How many opening Scorches are required by number of mages (index by num_mages)
 pub const SCORCHES_BY_MAGES: [i32; 13] = [9000, 6, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1];
 

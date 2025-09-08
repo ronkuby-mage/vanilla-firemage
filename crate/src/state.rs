@@ -2,6 +2,7 @@
 
 use core::f64;
 
+use log::debug;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
 use crate::constants::{self as C, Buff};
@@ -34,6 +35,7 @@ pub struct Boss {
     pub scorch_timer: f64,
     pub scorch_count: u8,
     pub spell_vulnerability: f64,
+    pub t3_6p: f64,
     pub dragonling_start: f64,
     pub nightfall: Vec<f64>,
 
@@ -51,6 +53,7 @@ impl Default for Boss {
             scorch_timer: 0.0,
             scorch_count: 0,
             spell_vulnerability: 0.0,
+            t3_6p: 0.0,
             dragonling_start: -C::DRAGONLING_DURATION,
             nightfall: vec![],
             scorch_refresh_history: Vec::new(),
@@ -129,6 +132,7 @@ pub struct PlayerMeta {
     pub sr_slots: Vec<usize>,
     pub ts_slots: Vec<usize>,
     pub cleaner_slots: Vec<usize>,
+    pub t3_6p_slots: Vec<usize>,
     pub berserk_slots: Vec<f64>,
     pub target_slots: Vec<usize>,
     pub nightfall_period: Vec<f64>,
@@ -317,6 +321,7 @@ impl State {
             l.berserk_timer -= dt;
         }
         if self.meta.no_debuff_limit {
+            self.boss.t3_6p -= dt;
             for l in &mut self.lanes { l.pyro_timer -= dt; }
         }
         for t in &mut self.boss.nightfall {
@@ -568,6 +573,12 @@ impl State {
         let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
         let mut buff_damage = if dragonling_active { C::DRAGONLING_BUFF } else { 0.0 };
         for b in 0..C::NUM_DAMAGE_BUFFS { if l.buff_timer[b] > 0.0 { buff_damage += C::BUFF_DAMAGE[b] + (l.buff_ticks[b] as f64)*C::BUFF_PER_TICK[b]; l.buff_ticks[b]=l.buff_ticks[b].saturating_add(1); } }
+        if self.meta.no_debuff_limit && self.boss.t3_6p > 0.0 {
+            buff_damage += C::T3_6P_DAMAGE;
+            self.boss.t3_6p = 0.0;
+            // see proc later.  this debuff confirmed can be consumed and applied in same spell hit
+        }
+
 
         let base_roll: f64 = rng.r#gen();
         let mut spell_damage = k.spell_base[spell_type] + base_roll*k.spell_range[spell_type] + k.sp_multiplier[spell_type]*(l.spell_power + buff_damage);
@@ -677,22 +688,33 @@ impl State {
             }
         }
 
-        if self.meta.no_debuff_limit && k.is_pyro[spell_type] {
-            let mut tick_damage = k.spell_base[Spell::PyroDot as usize] + k.sp_multiplier[Spell::PyroDot as usize]*(l.spell_power + buff_damage);
-            tick_damage *= k.damage_multiplier[Spell::PyroDot as usize]; // fire power
-            if l.pi_timer.iter().any(|&x| x > 0.0) { tick_damage *= 1.0 + C::POWER_INFUSION; }
-            if is_dmf { tick_damage *= 1.0 + C::DMF_BUFF; }
-            if is_sr { tick_damage *= 1.0 + C::SR_BUFF; }
-            if is_ts { tick_damage *= 1.0 + C::TS_BUFF; }
-            if is_cleaner { tick_damage *= 1.0 + C::UDC_MOD }
-            l.pyro_count = C::PYRO_COUNT;
-            l.pyro_timer = C::PYRO_TIMER;
-            l.pyro_value = tick_damage/(C::PYRO_COUNT as f64);
+        if self.meta.no_debuff_limit {
+            let is_t3_6p = self.meta.t3_6p_slots.iter().any(|&i| i == lane);
+            if is_t3_6p {
+                let is_proc = rng.r#gen::<f64>() < C::T3_6P_CHANCE;
+                if is_proc {
+                    self.boss.t3_6p = C::T3_6P_TIMER;
+                }
+            }
+
+            if k.is_pyro[spell_type] {
+                let mut tick_damage = k.spell_base[Spell::PyroDot as usize] + k.sp_multiplier[Spell::PyroDot as usize]*(l.spell_power + buff_damage);
+                tick_damage *= k.damage_multiplier[Spell::PyroDot as usize]; // fire power
+                if l.pi_timer.iter().any(|&x| x > 0.0) { tick_damage *= 1.0 + C::POWER_INFUSION; }
+                if is_dmf { tick_damage *= 1.0 + C::DMF_BUFF; }
+                if is_sr { tick_damage *= 1.0 + C::SR_BUFF; }
+                if is_ts { tick_damage *= 1.0 + C::TS_BUFF; }
+                if is_cleaner { tick_damage *= 1.0 + C::UDC_MOD }
+                l.pyro_count = C::PYRO_COUNT;
+                l.pyro_timer = C::PYRO_TIMER;
+                l.pyro_value = tick_damage/(C::PYRO_COUNT as f64);
+            }
         }
 
         if is_fire { l.comb_stack = l.comb_stack.saturating_add(1); }
 
         if self.log_enabled {
+            //log::debug!("hello buf damage = {}", buff_damage);
             if is_crit {
                 self.log_spell_impact(lane as i32, spell_string, spell_damage, partial, SpellResult::Crit);
                 //println!("  {:6.2} mage {} spell {} CRIT for {}", self.global.running_time, lane, spell_string, spell_damage)

@@ -43,6 +43,7 @@ pub struct Configuration {
     pub buff_assignments: HashMap<Buff, Vec<usize>>,
     pub pi_count: Vec<usize>,
     pub udc: Vec<usize>,
+    pub t3_6p: Vec<usize>,
     pub nightfall: Vec<f64>,
     pub dragonling: f64,
     pub boss: BossType,
@@ -65,6 +66,7 @@ impl Configuration {
             buff_assignments,
             pi_count: vec![],
             udc: vec![],
+            t3_6p: vec![],
             nightfall: vec![],
             dragonling: f64::INFINITY,
             boss: BossType::None,
@@ -250,6 +252,7 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     st.log_enabled = idx == 0;
 
     st.meta.cleaner_slots = p.config.udc.clone();
+    st.meta.t3_6p_slots = p.config.t3_6p.clone();
     st.meta.target_slots = p.config.target.clone();
     st.meta.dmf_slots = p.buffs.world.get(&WorldBuff::SaygesDarkFortuneOfDamage).unwrap().clone().to_vec();
     st.meta.sr_slots = p.buffs.world.get(&WorldBuff::SoulRevival).unwrap().clone().to_vec();

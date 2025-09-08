@@ -5,6 +5,11 @@
         position: relative;
     }
 
+    .tooltip {
+        pointer-events: none;
+    }
+
+
     .left {
         float: left;
 
@@ -148,5 +153,7 @@
         &.main-hand .paperitem { background-image: url("https://wow.zamimg.com/images/wow/icons/large/inventoryslot_mainhand.jpg"); }
         &.off-hand .paperitem { background-image: url("https://wow.zamimg.com/images/wow/icons/large/inventoryslot_offhand.jpg"); }
         &.ranged .paperitem { background-image: url("https://wow.zamimg.com/images/wow/icons/large/inventoryslot_ranged.jpg"); }
+        
     }
+   
 }

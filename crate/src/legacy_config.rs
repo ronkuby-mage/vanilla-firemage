@@ -96,6 +96,7 @@ pub struct LegacyItems {
     pub zhc: Option<bool>,
     pub mqg: Option<bool>,
     pub udc: Option<bool>,
+    pub t3_6p: Option<bool>,
 }
 
 
@@ -236,6 +237,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     let mut target = vec![];
     let mut vary = vec![];
     let mut udc = vec![];
+    let mut t3_6p = vec![];
     let mut pi_count = vec![0; nm];
     for (i, p) in cfg.players.iter().enumerate() {
         if p.items.sapp.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Sapp, i); }
@@ -243,6 +245,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         if p.items.zhc.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Zhc, i); }
         if p.items.mqg.unwrap_or(false)      { push_idx(&mut buff_assignments, Buff::Mqg, i); }
         if p.items.udc.unwrap_or(false) { udc.push(i); }
+        if p.items.t3_6p.unwrap_or(false) { t3_6p.push(i); }
         pi_count[i] = p.pi_count.unwrap_or(0);
         if p.is_target.unwrap_or(false) { target.push(i); }
         if p.is_vary.unwrap_or(false) { vary.push(i); }
@@ -267,6 +270,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         buff_assignments: buff_assignments,
         pi_count: pi_count,
         udc: udc,
+        t3_6p: t3_6p,
         nightfall: nightfall,
         dragonling: dragonling,
         boss: boss,

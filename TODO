@@ -1,7 +1,23 @@
-DONE * pass udc and trinket information to sim
+DONE pass udc and trinket information to sim
 DONE add target & power infusion (check boxes) to player
 DONE add boss type, dragonling, and nightfall to raid config
-* fix timing issues
-* rotations
-* stat weights
-* hook in soul_revival and traces of silithst
+DONE rotations
+DONE fx timing issues
+DONE fix presets
+DONE disable combat chart under single iteration
+DONE disable "normalize ignite" in overview
+DONE remove ignite option from histogram
+DONE stat weights
+DONE pass in the mage name
+DONE link PI action (and cooldown) to the config for a player
+DONE add multiple PIs (checkbox --> counter on same line as auras)
+DONE hook in soul_revival and traces of silithst
+DONE add over time sim comparison
+DONE better logging (adding resists, aura indicators)
+DONE make PI a cooldown in rotation UI
+*-- 8/8 t2 proc
+*- 6/9 t3 proc
+*- there is no "buff duration" for combustion
+*-- link talent to combustion, fire blast cooldown?
+*-- add AP, Pom talent
+

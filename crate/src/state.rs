@@ -36,6 +36,7 @@ pub struct Boss {
     pub scorch_count: u8,
     pub spell_vulnerability: f64,
     pub t3_6p: f64,
+    pub t2_8p: f64,
     pub dragonling_start: f64,
     pub nightfall: Vec<f64>,
 
@@ -54,6 +55,7 @@ impl Default for Boss {
             scorch_count: 0,
             spell_vulnerability: 0.0,
             t3_6p: 0.0,
+            t2_8p: 0.0,
             dragonling_start: -C::DRAGONLING_DURATION,
             nightfall: vec![],
             scorch_refresh_history: Vec::new(),
@@ -133,6 +135,7 @@ pub struct PlayerMeta {
     pub ts_slots: Vec<usize>,
     pub cleaner_slots: Vec<usize>,
     pub t3_6p_slots: Vec<usize>,
+    pub t2_8p_slots: Vec<usize>,
     pub berserk_slots: Vec<f64>,
     pub target_slots: Vec<usize>,
     pub nightfall_period: Vec<f64>,
@@ -234,7 +237,7 @@ impl State {
         }
     }
 
-    pub fn log_cast(&mut self, log_type: LogType, unit_id: i32, spell: Action) {
+    pub fn log_cast(&mut self, log_type: LogType, unit_id: i32, spell: Action, delay: f64) {
         let l = &mut self.lanes[unit_id as usize];
         let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
         let b = &mut self.boss;
@@ -242,7 +245,7 @@ impl State {
             log_type: log_type,
             text: format!("s[{}]", spell),
             unit_name: self.meta.name[unit_id as usize].clone(),
-            t: self.global.running_time,
+            t: self.global.running_time + delay,
             dps: 0.0,
             total_dps: if self.global.running_time > 0.0 { self.totals.total_damage / self.global.running_time } else { 0.0 },
             ignite_dps: if self.global.running_time > 0.0 { self.totals.ignite_damage / self.global.running_time } else { 0.0 },
@@ -310,7 +313,7 @@ impl State {
             for timer in &mut l.spell_timer {
                 *timer -= dt;
             }
-            l.gcd_timer -= dt;
+            // l.gcd_timer -= dt;  GCD stores a value that is not reduced until it's moved to cast_timer
             l.comb_cooldown -= dt;
             l.fb_cooldown -= dt;
             for t in &mut l.buff_timer { *t -= dt; }
@@ -388,32 +391,29 @@ impl State {
 
             // MQG haste (Python divides cast portion by 1+MQG)
             let mut cast_time: f64 = base_cast;
-            if action != A::Scorch {
-                let mut haste: f64 = 1.0;
-                haste /= if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
-                haste *= if l.berserk_timer > 0.0 { 1.0 - self.meta.berserk_slots[lane] } else { 1.0 };
-                cast_time *= haste;
-                cast_time = cast_time.max(C::GLOBAL_COOLDOWN);
-            }
+            let mut haste: f64 = 1.0;
+            haste /= if l.buff_timer[B::Mqg as usize] > 0.0 { 1.0 + C::MQG_HASTE } else { 1.0 };
+            haste *= if l.berserk_timer > 0.0 { 1.0 - self.meta.berserk_slots[lane] } else { 1.0 };
+            cast_time *= haste;
+            //cast_time = cast_time.max(C::GLOBAL_COOLDOWN);
 
             let total = continuing_delay + cast_time;
             l.cast_timer = total;
 
             // leftover GCD stored to be pushed after cast ends
-            let gcd_len = C::GLOBAL_COOLDOWN;
-            l.gcd_timer = (gcd_len + continuing_delay - total).max(0.0);
+            l.gcd_timer = (C::GLOBAL_COOLDOWN + continuing_delay - total).max(0.0);
         } else {
             l.gcd_timer = 0.0;
         }
         if self.log_enabled {
-            self.log_cast(LogType::CastStart, lane as i32, action);    
+            self.log_cast(LogType::CastStart, lane as i32, action, continuing_delay);    
         }
 
         // Block decisions until the event is handled (Python clears global decision flag)
         self.set_decision_gate(false);
     }
 
-    pub fn finish_cast(&mut self, k: &Constants) {
+    pub fn finish_cast(&mut self, k: &Constants, rng: &mut ChaCha8Rng) {
         use crate::constants::{Action as A, Buff as B, Spell as S};
 
         // Which lane just finished its cast?
@@ -447,6 +447,20 @@ impl State {
             // Special: fire blast starts its own cooldown on *cast end* in Python
             if matches!(action, A::FireBlast) {
                 l.fb_cooldown = C::FIRE_BLAST_COOLDOWN;
+            }
+            let is_t2_8p = self.meta.t2_8p_slots.iter().any(|&i| i == lane);
+            if is_t2_8p && k.spell_trigger_t2_8p[spell as usize] {
+                // inaccuracy: multiple t2 procs will not be GCD interlaced
+                if rng.r#gen::<f64>() < C::T2_8P_CHANCE {
+                    let mut l_gcd = C::GLOBAL_COOLDOWN;
+                    if l.gcd_timer > 0.0 {
+                        l_gcd += l.gcd_timer;
+                    }
+                    l.gcd_timer = l_gcd;
+                    l.cast_timer = 0.0;
+                    self.log_cast(LogType::CastSuccess, lane as i32, action, 0.0); 
+                    return;
+                }
             }
         } else {
 
@@ -522,7 +536,7 @@ impl State {
             self.lanes[lane].cast_number = cn.saturating_add(1);
         }
         if self.log_enabled {
-            self.log_cast(LogType::CastSuccess, lane as i32, action); 
+            self.log_cast(LogType::CastSuccess, lane as i32, action, 0.0); 
         }
 
     }
@@ -837,7 +851,7 @@ impl State {
 
         // Exact Python priority: cast < spell < tick < proc
         if cast_t <= spell_t && cast_t <= tick_t && cast_t <= proc_t && cast_t <= pyro_t {
-            self.finish_cast(k);
+            self.finish_cast(k, rng);
             return;
         }
         if spell_t <= tick_t && spell_t <= proc_t && spell_t <= pyro_t {

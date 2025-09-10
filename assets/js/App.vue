@@ -195,6 +195,7 @@ const presetBuffs = () => {
 
 const defaultItems = () => {
     return {
+        t2_8p: false,
         t3_6p: false,
         udc: false,
         sapp: false,
@@ -617,6 +618,10 @@ const simLoadoutItems = (loadout) => {
     if (simSets.hasOwnProperty(items.ids.SET_T3)) {
         if (simSets[items.ids.SET_T3] >= 6)
             simItems.t3_6p = true;
+    }
+    if (simSets.hasOwnProperty(items.ids.SET_T2)) {
+        if (simSets[items.ids.SET_T2] == 8)
+            simItems.t2_8p = true;
     }
     return simItems;
 };

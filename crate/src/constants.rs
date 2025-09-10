@@ -234,6 +234,8 @@ pub const T3_6P_CHANCE: f64 = 0.2;
 pub const T3_6P_DAMAGE: f64 = 200.0;
 pub const T3_6P_TIMER: f64 = 30.0;
 
+pub const T2_8P_CHANCE: f64 = 0.1;
+
 /// How many opening Scorches are required by number of mages (index by num_mages)
 pub const SCORCHES_BY_MAGES: [i32; 13] = [9000, 6, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1];
 
@@ -293,6 +295,7 @@ pub struct Constants {
     pub icrit_damage: f64,    // +0.5 for fire crits to emulate 150%
     pub crit_damage: f64,     // +0.5 normal or +1.0 for talented frostbolt
 
+    pub spell_trigger_t2_8p: [bool; NUM_SPELLS],
 }
 
 impl Constants {
@@ -358,6 +361,8 @@ impl Constants {
         let icrit_damage = 0.5; // +50% for fire crits
         let crit_damage = if cfg.frostbolt_talented { 1.0 } else { 0.5 };
 
+        let spell_trigger_t2_8p = [false, false, true, false, true, false];
+
         Self {
             sp_multiplier,
             damage_multiplier,
@@ -372,6 +377,7 @@ impl Constants {
             ignite_damage,
             icrit_damage,
             crit_damage,
+            spell_trigger_t2_8p,
         }
     }
 }

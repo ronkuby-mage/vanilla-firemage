@@ -1561,11 +1561,11 @@ button {
 /* Glow animation keyframes */
 @keyframes tutorial-glow {
     0% {
-        box-shadow: 0 0 5px rgba(74, 144, 226, 0.3);
         opacity: 0.7;
+        transform: scale(1);
     }
     100% {
-        box-shadow: 0 0 20px rgba(74, 144, 226, 0.8), 0 0 30px rgba(74, 144, 226, 0.4);
         opacity: 1;
+        transform: scale(1.05);
     }
 }

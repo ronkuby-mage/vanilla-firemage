@@ -351,7 +351,7 @@ export default {
             stats.sp_fire+= 40;
         if (player.buffs.flask_of_supreme_power)
             stats.sp+= 150;
-        if (player.buffs.blessed_weapon_oil)
+        if (player.buffs.blessed_wizard_oil)
             stats.sp+= 60;
         else if (player.buffs.brilliant_wizard_oil)
             stats.sp+= 36;

@@ -4,7 +4,7 @@ use rand_chacha::ChaCha8Rng;
 use rand_distr::{Normal, Distribution};
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use crate::constants::{Buff, Constants, ConstantsConfig, ConsumeBuff, RaidBuff, WorldBuff, Racial, BossType};
+use crate::constants::{Buff, Constants, ConstantsConfig, ConsumeBuff, RaidBuff, WorldBuff, Racial, BossType, TeamTalentPoints};
 use crate::state::{State};
 use crate::decisions::Decider;
 
@@ -49,8 +49,10 @@ pub struct Configuration {
     pub dragonling: f64,
     pub boss: BossType,
     pub coe: bool,
+    pub talents: TeamTalentPoints,
     pub name: Vec<String>,
 }
+
 impl Configuration {
     pub fn new() -> Self {
         let mut buff_assignments = HashMap::new();
@@ -73,6 +75,7 @@ impl Configuration {
             dragonling: f64::INFINITY,
             boss: BossType::None,
             coe: true,
+            talents: TeamTalentPoints::new(0),
             name: Vec::new(),
         }
     }
@@ -300,6 +303,8 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         if st.meta.berserk_slots[lane_idx] > 0.0 { st.lanes[lane_idx].berserk_cooldown = 0.0 }
     }
     st.subtime(overall_delay); // set delay after all time initializations
+
+    st.meta.talents = p.config.talents.clone();
 
     st
 }

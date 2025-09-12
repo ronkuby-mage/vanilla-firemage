@@ -9,7 +9,6 @@
         pointer-events: none;
     }
 
-
     .left {
         float: left;
 
@@ -156,4 +155,26 @@
         
     }
    
+}
+
+.iconmedium {
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.iconmedium ins {
+    width: 1px !important;
+    height: 1px !important;
+    background-size: 1px 1px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    outline: none !important;
+    transform: scale(0.01) !important;
 }

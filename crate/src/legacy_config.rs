@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use crate::constants::{
     ConstantsConfig, Racial, Buff, BossType,
     ConsumeBuff as Cn, RaidBuff as Rd, WorldBuff as Wb,
+    Talent, TalentPoints, TeamTalentPoints,
 };
 use crate::orchestration::Buffs; // <- your Buffs struct
 use crate::orchestration::{SimParams, Stats, Timing, Configuration};
@@ -264,6 +265,11 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     let dsw:bool = if cfg.is_active_raid.unwrap_or(false) { true } else {false};
     let ndl:bool = if cfg.no_debuff_limit.unwrap_or(false) { true } else {false};
 
+    let mut talents: TeamTalentPoints = TeamTalentPoints::new(cfg.players.len());
+    for (i, p) in cfg.players.iter().enumerate() {
+        talents.set_mage_talents(i, p.talents.clone());
+    }    
+
     let config = Configuration {
         num_mages: nm,
         target: target,
@@ -279,6 +285,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         dragonling: dragonling,
         boss: boss,
         coe: coe,
+        talents: talents,
         name: name,
     };
     // Constants config: carry defaults unless you expose knobs in UI

@@ -11,6 +11,132 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(usize)]
+pub enum Talent {
+    // Arcane Tree (0-15)
+    ArcaneSubtlety = 0,
+    ArcaneFocus = 1,
+    ImprovedArcaneMissiles = 2,
+    WandSpecialization = 3,
+    MagicAbsorbtion = 4,
+    ArcaneConcentration = 5,
+    MagicAttunement = 6,
+    ImprovedArcaneExplosion = 7,
+    ArcaneResiliance = 8,
+    ImprovedManaShield = 9,
+    ImprovedCounterspell = 10,
+    ArcaneMeditation = 11,
+    PresenceOfMind = 12,
+    ArcaneMind = 13,
+    ArcaneInstability = 14,
+    ArcanePower = 15,
+    
+    // Fire Tree (16-31)
+    ImprovedFireball = 16,
+    Impact = 17,
+    Ignite = 18,
+    FlameThrowing = 19,
+    ImprovedFireBlast = 20,
+    Incinerate = 21,
+    ImprovedFlamestrike = 22,
+    Pryoblast = 23,
+    BurningSoul = 24,
+    ImprovedScorch = 25,
+    ImprovedFireWard = 26,
+    MasterOfElements = 27,
+    CriticalMass = 28,
+    BlastWave = 29,
+    FirePower = 30,
+    Combustion = 31,
+    
+    // Frost Tree (32-48)
+    FrostWarding = 32,
+    ImprovedFrostbolt = 33,
+    ElementalPrecision = 34,
+    IceShards = 35,
+    Frostbite = 36,
+    ImprovedFrostNova = 37,
+    Permafrost = 38,
+    PiercingIce = 39,
+    ColdSnap = 40,
+    ImprovedBlizard = 41,
+    ArcticReach = 42,
+    FrostChanneling = 43,
+    Shatter = 44,
+    IceBlock = 45,
+    ImprovedConeOfCold = 46,
+    WintersChill = 47,
+    IceBarrier = 48,
+}
+
+#[derive(Debug, Clone)]
+pub struct TalentPoints {
+    points: [u8; 49],
+}
+
+impl TalentPoints {
+    pub fn new() -> Self {
+        let talents_data = [
+            2, 3, 0, 0, 0, 5, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0,
+            5, 0, 5, 2, 1, 2, 2, 1, 2, 3, 0, 3, 3, 1, 5, 1,
+            0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ];
+        
+        Self { points: talents_data }
+    }
+    
+    pub fn get(&self, talent: Talent) -> u8 {
+        self.points[talent as usize]
+    }
+    
+    pub fn set(&mut self, talent: Talent, points: u8) {
+        self.points[talent as usize] = points;
+    }
+}
+
+impl TalentPoints {
+    pub fn from_vec(talents_data: Vec<u8>) -> Result<Self, String> {
+        if talents_data.len() != 49 {
+            return Err(format!("Expected 49 talents, got {}", talents_data.len()));
+        }
+        
+        let points: [u8; 49] = talents_data.try_into()
+            .map_err(|_| "Failed to convert Vec to array".to_string())?;
+        
+        Ok(Self { points })
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TeamTalentPoints {
+    team: Vec<TalentPoints>,
+}
+
+impl TeamTalentPoints {
+    // Create team with n mages (initialized with empty talent points)
+    pub fn new(n: usize) -> Self {
+        Self {
+            team: vec![TalentPoints::new(); n],
+        }
+    }
+    
+    // Copy Vec<u8> to the ith mage
+    pub fn set_mage_talents(&mut self, i: usize, talents_data: Vec<u8>) -> Result<(), String> {
+        if i >= self.team.len() {
+            return Err(format!("Index {} out of bounds", i));
+        }
+        
+        self.team[i] = TalentPoints::from_vec(talents_data)?;
+        Ok(())
+    }
+    
+    // Copy the ith mage's talents to a TalentPoints
+    pub fn get_mage_talents(&self, i: usize) -> Option<TalentPoints> {
+        self.team.get(i).cloned()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Spell { Scorch = 0, Pyroblast = 1, Fireball = 2, FireBlast = 3, Frostbolt = 4, PyroDot = 5 }
 

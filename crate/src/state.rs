@@ -5,7 +5,7 @@ use core::f64;
 use log::debug;
 use rand::Rng;
 use rand_chacha::ChaCha8Rng;
-use crate::constants::{self as C, Buff};
+use crate::constants::{self as C, Buff, Talent, TalentPoints, TeamTalentPoints};
 use crate::constants::{Action, Spell, Constants};
 use crate::orchestration::{DamageAccumulator, LogEntry, LogType, SpellResult};
 
@@ -141,6 +141,7 @@ pub struct PlayerMeta {
     pub nightfall_period: Vec<f64>,
     pub vulnerability: f64,
     pub coe: f64,
+    pub talents: TeamTalentPoints,
     pub no_debuff_limit: bool,
     pub name: Vec<String>,
 }

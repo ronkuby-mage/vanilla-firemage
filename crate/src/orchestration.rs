@@ -2,16 +2,17 @@
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rand_distr::{Normal, Distribution};
+use core::f64;
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use crate::constants::{Buff, Constants, ConstantsConfig, ConsumeBuff, RaidBuff, WorldBuff, Racial, BossType, TeamTalentPoints};
+use crate::constants::{Buff, Constants, ConsumeBuff, RaidBuff, WorldBuff, Racial, BossType, Talent, TalentPoints, TeamTalentPoints};
 use crate::state::{State};
 use crate::decisions::Decider;
 
 
 // ---- Parameters mirrored from Python inputs (trimmed first pass) ----
 #[derive(Debug, Clone)]
-pub struct Stats { pub spell_power: Vec<f64>, pub crit_chance: Vec<f64>, pub hit_chance: Vec<f64>, pub intellect: Vec<f64> }
+pub struct Stats { pub fire_power: Vec<f64>, pub frost_power: Vec<f64>, pub crit_chance: Vec<f64>, pub hit_chance: Vec<f64>, pub intellect: Vec<f64> }
 
 fn has_idx<K: Eq + std::hash::Hash>(map: &std::collections::HashMap<K, Vec<usize>>, key: K, idx: usize) -> bool {
     map.get(&key).map(|v| v.contains(&idx)).unwrap_or(false)
@@ -87,7 +88,6 @@ pub struct SimParams {
     pub buffs: Buffs,
     pub timing: Timing,
     pub config: Configuration,
-    pub consts_cfg: ConstantsConfig,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -194,7 +194,7 @@ fn first_action_offsets(num_mages: usize, initial_delay: f64, rng: &mut ChaCha8R
 }
 
 fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
- 
+
     // 1) Intellect pipeline 
     for i in 0..stats.intellect.len() {
         let mut intel = stats.intellect[i];
@@ -219,7 +219,7 @@ fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
     }
 
     // 2) Spell power buffs
-    for (i, sp) in stats.spell_power.iter_mut().enumerate() {
+    for (i, sp) in stats.fire_power.iter_mut().enumerate() {
 
         if has_idx(&buffs.consumes, ConsumeBuff::GreaterArcaneElixir, i) { *sp += 35.0; }
         if has_idx(&buffs.consumes, ConsumeBuff::ElixirOfGreaterFirepower, i) { *sp += 40.0; }
@@ -229,10 +229,20 @@ fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
         if has_idx(&buffs.consumes, ConsumeBuff::VeryBerryCream, i) { *sp += 23.0; }
         *sp += 33.0 * buffs.auras_lock_atiesh.get(i).copied().unwrap_or(0) as f64;
     }
+    for (i, sp) in stats.frost_power.iter_mut().enumerate() {
+
+        if has_idx(&buffs.consumes, ConsumeBuff::GreaterArcaneElixir, i) { *sp += 35.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::ElixirOfFrostPower, i) { *sp += 40.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::FlaskOfSupremePower, i) { *sp += 150.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::BlessedWizardOil, i) { *sp += 60.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::BrilliantWizardOil, i) { *sp += 36.0; }
+        if has_idx(&buffs.consumes, ConsumeBuff::VeryBerryCream, i) { *sp += 23.0; }
+        *sp += 33.0 * buffs.auras_lock_atiesh.get(i).copied().unwrap_or(0) as f64;
+    }
 
     // 3) Crit chance buffs (uses UPDATED intellect)
     for (i, cc) in stats.crit_chance.iter_mut().enumerate() {
-        *cc += 0.062; // base + talents 
+        *cc += 0.002; // we get 0.2% crit for free!!!
         if has_idx(&buffs.consumes, ConsumeBuff::BrilliantWizardOil, i) { *cc += 0.01; }
         if has_idx(&buffs.world, WorldBuff::RallyingCryOfTheDragonslayer, i) { *cc += 0.10; }
         if has_idx(&buffs.world, WorldBuff::SongflowerSerenade, i) { *cc += 0.05; }
@@ -245,7 +255,7 @@ fn apply_buffs(stats: &mut Stats, buffs: &Buffs) {
     }
 
     // 4) Hit chance floor/cap
-    for hc in &mut stats.hit_chance { *hc = (*hc + 0.89).min(0.99); }
+    for hc in &mut stats.hit_chance { *hc += 0.83; }
 }
 
 fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
@@ -281,12 +291,16 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
         let l = &mut st.lanes[i];
         l.cast_timer = offsets[i];
         l.hit_chance = p.stats.hit_chance[i];
-        l.crit_chance = p.stats.crit_chance[i];
-        l.spell_power = p.stats.spell_power[i];
+        l.crit_chance_fire = p.stats.crit_chance[i];
+        l.crit_chance_frost = p.stats.crit_chance[i];
+        l.fire_power = p.stats.fire_power[i];
+        l.frost_power = p.stats.frost_power[i];
         // Buff availability: PI, trinkets that are assigned get 0 cooldown to open
         for cooldown in l.buff_cooldown.iter_mut() { *cooldown = f64::INFINITY; }
         // Others could come from config similarly
     }
+
+    st.meta.talents = p.config.talents.clone();
 
     for lane_idx in 0..st.lanes.len() {
         for (buff, indices) in &p.config.buff_assignments {
@@ -301,10 +315,20 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
             st.lanes[lane_idx].pi_cooldown[slot] = 0.0;
         }
         if st.meta.berserk_slots[lane_idx] > 0.0 { st.lanes[lane_idx].berserk_cooldown = 0.0 }
+
+        if let Some(talent_points) = st.meta.talents.get_mage_talents(lane_idx) {
+            st.lanes[lane_idx].crit_chance_fire += 0.02 * talent_points.get(Talent::CriticalMass) as f64;
+            st.lanes[lane_idx].crit_chance_fire += 0.01 * talent_points.get(Talent::ArcaneInstability) as f64;
+            st.lanes[lane_idx].crit_chance_frost += 0.01 * talent_points.get(Talent::ArcaneInstability) as f64;
+
+            st.lanes[lane_idx].hit_chance = (st.lanes[lane_idx].hit_chance + 0.02 * talent_points.get(Talent::ElementalPrecision) as f64).min(0.99);
+
+            if talent_points.get(Talent::Combustion) < 1 { st.lanes[lane_idx].comb_cooldown = f64::INFINITY }
+            if talent_points.get(Talent::ArcanePower) > 0 { st.lanes[lane_idx].ap_cooldown = 0.0 }
+            if talent_points.get(Talent::PresenceOfMind) > 0 { st.lanes[lane_idx].pom_cooldown = 0.0 }
+        }
     }
     st.subtime(overall_delay); // set delay after all time initializations
-
-    st.meta.talents = p.config.talents.clone();
 
     st
 }
@@ -339,11 +363,11 @@ pub fn display_party_stats(st: &State, intellect: Option<&[f64]>) {
             .unwrap_or_else(|| "-".to_string());
 
         log::debug!(
-            "Mage {:>2}: SP={:>4.0}  Hit={:>5.2}%  Crit={:>5.2}%  Int={} Ready=[{}]",
+            "Mage {:>2}: FP={:>4.0}  Hit={:>5.2}%  FCrit={:>5.2}%  Int={} Ready=[{}]",
             i,
-            lane.spell_power,
+            lane.fire_power,
             100.0 * lane.hit_chance,
-            100.0 * lane.crit_chance,
+            100.0 * lane.crit_chance_fire,
             int_str,
             ready_str
         );
@@ -365,10 +389,17 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
         ChaCha8Rng::from_entropy()
     };
 
-    // Build constants and bake stats
-    let k = Constants::new(&params.consts_cfg);
-    let mut baked_params = params.clone();
+    let mut k_vec = Vec::with_capacity(params.config.num_mages);
+    for i in 0..params.config.num_mages {
+        if let Some(talent_points) = params.config.talents.get_mage_talents(i) {
+            k_vec.push(Constants::new(&talent_points));
+        } else {
+            // Fallback to default if no talents specified for this mage
+            k_vec.push(Constants::new(&TalentPoints::new()));
+        }
+    }
 
+    let mut baked_params = params.clone();
     apply_buffs(&mut baked_params.stats, &params.buffs);
 
     // Init state
@@ -386,12 +417,12 @@ pub fn run_single<D: Decider>(params: &SimParams, decider: &mut D, seed: u64, id
             let normal = Normal::new(0.0, delay_sigma).unwrap();
             let continuing_delay: f64 = normal.sample(&mut rng).abs();
             
-            st.start_action(lane, action, continuing_delay, &k);
+            st.start_action(lane, action, continuing_delay, &k_vec);
         }
 
         // step one event
         while !st.decision_gate() && st.in_progress() {
-            st.step_one(&k, &mut rng);
+            st.step_one(&k_vec, &mut rng);
         }
     }
 

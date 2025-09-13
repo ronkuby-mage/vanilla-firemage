@@ -27,6 +27,10 @@ fn action_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
         return st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() <= 0.0;
     } else if action == Action::Combustion {
         return st.lanes[lane].comb_cooldown <= 0.0;
+    } else if action == Action::ArcanePower {
+        return st.lanes[lane].ap_cooldown <= 0.0;
+    } else if action == Action::PresenceOfMind {
+        return st.lanes[lane].pom_cooldown <= 0.0;
     } else if action == Action::Berserking {
         return st.lanes[lane].berserk_cooldown <= 0.0;
     }
@@ -89,7 +93,9 @@ pub struct TeamDecider {
 }
 
 impl TeamDecider {
-    pub fn new(mages: Vec<Box<dyn MageDecider>>) -> Self { Self { mages } }
+    pub fn new(mages: Vec<Box<dyn MageDecider>>) -> Self { 
+        Self { mages } 
+    }
 }
 
 impl Decider for TeamDecider {
@@ -285,6 +291,8 @@ impl AdaptiveMage {
                     29977 => if st.lanes[lane].comb_cooldown > 0.0 { 1.0 } else { 0.0 }, // COMBUSTION
                     10199 => if st.lanes[lane].fb_cooldown > 0.0 { 1.0 } else { 0.0 },   // FIRE_BLAST
                     10060 => if st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap() > 0.0 { 1.0 } else { 0.0 },   // PI
+                    12042 => if st.lanes[lane].ap_cooldown > 0.0 { 1.0 } else { 0.0 },
+                    12043 => if st.lanes[lane].pom_cooldown > 0.0 { 1.0 } else { 0.0 },
                     20554 => if st.lanes[lane].berserk_cooldown > 0.0 { 1.0 } else { 0.0 },
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
@@ -301,6 +309,8 @@ impl AdaptiveMage {
                     29977 => st.lanes[lane].comb_cooldown.max(0.0), // COMBUSTION
                     10199 => st.lanes[lane].fb_cooldown.max(0.0),   // FIRE_BLAST
                     10060 => st.lanes[lane].pi_cooldown.iter().cloned().reduce(f64::min).unwrap().max(0.0),
+                    12042 => st.lanes[lane].ap_cooldown.max(0.0),
+                    12043 => st.lanes[lane].pom_cooldown.max(0.0),
                     20554 => st.lanes[lane].berserk_cooldown.max(0.0),
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
@@ -316,6 +326,8 @@ impl AdaptiveMage {
                 match value.vint {
                     29977 => st.lanes[lane].comb_left as f64, // COMBUSTION - use comb_left
                     10060 => if st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap() > 0.0 { 1.0 } else { 0.0 },
+                    12042 => if st.lanes[lane].ap_timer > 0.0 {1.0} else { 0.0 },
+                    12043 => if st.lanes[lane].pom_active {1.0} else { 0.0 },
                     20554 => if st.lanes[lane].berserk_timer > 0.0 {1.0} else { 0.0 },
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {
@@ -330,7 +342,8 @@ impl AdaptiveMage {
             AplValueType::PlayerAuraDuration => {
                 match value.vint {
                     29977 => 0.0, // COMBUSTION - no duration for combustion aura
-                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap().max(0.0),  
+                    10060 => st.lanes[lane].pi_timer.iter().cloned().reduce(f64::max).unwrap().max(0.0),
+                    12042 => st.lanes[lane].ap_timer.max(0.0),
                     20554 => st.lanes[lane].berserk_timer.max(0.0),
                     _ => {
                         if let Some(buff) = self.js_constant_to_buff(value.vint) {

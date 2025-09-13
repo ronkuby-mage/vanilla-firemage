@@ -127,6 +127,7 @@ impl FromJsonString for AplValueType {
 // Helper function to convert APL action key string to Action enum
 fn apl_key_to_action(key: &str) -> Action {
     match key {
+        "ArcanePower" => Action::ArcanePower,
         "Berserking" => Action::Berserking,
         "Combustion" => Action::Combustion,
         "EphemeralPower" => Action::Toep,
@@ -136,6 +137,7 @@ fn apl_key_to_action(key: &str) -> Action {
         "Frostbolt" => Action::Frostbolt,
         "MindQuickening" => Action::Mqg,
         "PowerInfusion" => Action::PowerInfusion,
+        "PresenceOfMind" => Action::PresenceOfMind,
         "Pyroblast" => Action::Pyroblast,
         "Scorch" => Action::Scorch,
         "UnstablePower" => Action::Zhc,
@@ -314,13 +316,13 @@ pub fn create_team_decider_from_apls(apls: &[Option<serde_json::Value>], timing:
     let mut mages: Vec<Box<dyn MageDecider>> = Vec::new();
     
     for apl_option in apls {
+        
         let mage_decider = if let Some(apl_value) = apl_option {
-            create_adaptive_mage_from_apl(apl_value, timing)
+            create_adaptive_mage_from_apl(apl_value, timing)  // Pass reference
         } else {
-            // Fallback for players without APL data
             Box::new(ScriptedMage::new(
-                vec![], // No opener sequence
-                Action::Fireball, // Default action
+                vec![],
+                Action::Fireball,
                 timing.recast_delay,
             ))
         };

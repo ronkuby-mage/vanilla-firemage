@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use crate::constants::{
-    ConstantsConfig, Racial, Buff, BossType,
+    Racial, Buff, BossType,
     ConsumeBuff as Cn, RaidBuff as Rd, WorldBuff as Wb,
-    Talent, TalentPoints, TeamTalentPoints,
+    TeamTalentPoints,
 };
 use crate::orchestration::Buffs; // <- your Buffs struct
 use crate::orchestration::{SimParams, Stats, Timing, Configuration};
@@ -49,6 +49,7 @@ pub struct LegacyBuffs {
     pub gift_of_stormwind: Option<bool>,
     pub elixir_greater_arcane: Option<bool>,
     pub elixir_greater_firepower: Option<bool>, // +40 fire sp
+    pub elixir_frost_power: Option<bool>, // +40 fire sp
     pub brilliant_wizard_oil: Option<bool>,    // "brilliant", "blessed", "none"
     pub blessed_wizard_oil: Option<bool>,    // "brilliant", "blessed", "none"
     pub very_berry_cream: Option<bool>,          // 
@@ -88,6 +89,8 @@ pub struct LegacyStats {
     pub sp: f64,
     pub crit: f64, // percent in UI (e.g., 10 for 10%)
     pub hit: f64,  // percent in UI (e.g., 9 for 9%)
+    pub sp_fire: f64,
+    pub sp_frost: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,7 +137,8 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
 
     // --- Stats vectors (per mage) ---
     let mut stats = Stats {
-        spell_power: vec![0.0; nm],
+        fire_power: vec![0.0; nm],
+        frost_power: vec![0.0; nm],
         crit_chance: vec![0.0; nm],
         hit_chance:  vec![0.0; nm],
         intellect:   vec![0.0; nm],
@@ -144,7 +148,8 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
     let mut berserk: Vec<f64> = vec![0.0; nm];
 
     for (i, p) in cfg.players.iter().enumerate() {
-        stats.spell_power[i] = p.stats.sp;
+        stats.fire_power[i] = p.stats.sp + p.stats.sp_fire;
+        stats.frost_power[i] = p.stats.sp + p.stats.sp_frost;
         stats.crit_chance[i] = p.stats.crit / 100.0; // UI sends percent
         stats.hit_chance[i]  = p.stats.hit / 100.0;
         stats.intellect[i]   = p.stats.int;
@@ -201,6 +206,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         // Spell power elixirs:
         if p.buffs.flask_of_supreme_power.unwrap_or(false) { push_idx(&mut consumes, Cn::FlaskOfSupremePower, i); }
         if p.buffs.elixir_greater_firepower.unwrap_or(false) { push_idx(&mut consumes, Cn::ElixirOfGreaterFirepower, i); }
+        if p.buffs.elixir_frost_power.unwrap_or(false) { push_idx(&mut consumes, Cn::ElixirOfFrostPower, i); }
         if p.buffs.elixir_greater_arcane.unwrap_or(false) { push_idx(&mut consumes, Cn::GreaterArcaneElixir, i); }
         // Wizard oils:
         if p.buffs.brilliant_wizard_oil.unwrap_or(false) { push_idx(&mut consumes, Cn::BrilliantWizardOil, i); }
@@ -209,11 +215,6 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         // Atiesh aura flags (if you model them as per-mage scalar auras, handle elsewhere)
         // p.atiesh_mage / p.atiesh_warlock could feed your auras_mage_atiesh / auras_lock_atiesh
     }
-    // log::debug!("World buffs assignments:");
-    // for (buff, lanes) in world.clone().into_iter() {
-    //     debug!("{:?} -> {:?}", buff, lanes);
-    // }
-    // log::debug!("Done");
 
     let boss: BossType = match cfg.boss.as_deref() {
         Some("Loatheb") => BossType::Loatheb,
@@ -254,11 +255,6 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         if p.is_target.unwrap_or(false) { target.push(i); }
         if p.is_vary.unwrap_or(false) { vary.push(i); }
     }
-    // log::debug!("Buffs assignments:");
-    // for (buff, lanes) in buff_assignments.clone().into_iter() {
-    //     debug!("{:?} -> {:?}", buff, lanes);
-    // }
-    // log::debug!("Done");
     let dragonling: f64 = cfg.arcanite_dragonling.as_ref().and_then(parse_f64).unwrap_or(f64::INFINITY);
     let nightfall: Vec<f64> = [cfg.nightfall1, cfg.nightfall2, cfg.nightfall3].into_iter().filter_map(|opt| opt.as_ref().and_then(parse_f64)).map(|f| f.max(1.0)).collect();
     let coe:bool = if cfg.curse_of_elements.unwrap_or(false) { true } else {false};
@@ -267,7 +263,7 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
 
     let mut talents: TeamTalentPoints = TeamTalentPoints::new(cfg.players.len());
     for (i, p) in cfg.players.iter().enumerate() {
-        talents.set_mage_talents(i, p.talents.clone());
+        talents.set_mage_talents(i, p.talents.clone()).expect("Failed to set mage talents during legacy config conversion");
     }    
 
     let config = Configuration {
@@ -288,10 +284,8 @@ fn convert_legacy_to_simparams_internal(cfg: LegacyConfig, timing: Timing) -> Si
         talents: talents,
         name: name,
     };
-    // Constants config: carry defaults unless you expose knobs in UI
-    let consts_cfg = ConstantsConfig::default();
 
-    SimParams { stats, buffs, timing, config, consts_cfg }
+    SimParams { stats, buffs, timing, config }
 }
 
 fn extract_players_apls(players: &Vec<LegacyPlayer>) -> Vec<Option<serde_json::Value>> {

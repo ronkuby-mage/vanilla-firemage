@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from "vue";
+import { computed, onMounted, nextTick, watch } from "vue";
 import { mage as talentTree } from "../talents";
 
-const props = defineProps(["modelValue", "level", "readonly"]);
+const props = defineProps(["modelValue", "level"]);
+//const props = defineProps(["modelValue", "level", "readonly"]);
 const emits = defineEmits(["update:modelValue"]);
 
 const maxTalents = props.level ? Math.max(0, props.level - 9) : 51;

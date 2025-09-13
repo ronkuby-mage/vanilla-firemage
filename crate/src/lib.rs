@@ -24,14 +24,20 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
 
 
     let (params, players_data) = convert_legacy_to_simparams_and_players_data(legacy);
-    let make_decider = move || create_team_decider_from_apls(&players_data, &params.timing);
+    //let make_decider = move || create_team_decider_from_apls(&players_data, &params.timing, &params.config.talents);
+
+    let make_decider = || {
+        // Clone inside the closure each time it's called
+        create_team_decider_from_apls(&players_data, &params.timing)
+    };
+
 
     let seed = 42u64; // or take from legacy.rng_seed.unwrap_or(42)
     let mut results: SimulationsResult = run_many_with::<_, _>(&params, &make_decider, iterations, seed);
 
     if params.config.target.len() > 0 && params.config.vary.len() > 0 && params.config.do_stat_weights {
         let mut sp_params = params.clone();
-        for (idx, sp) in sp_params.stats.spell_power.iter_mut().enumerate() {
+        for (idx, sp) in sp_params.stats.fire_power.iter_mut().enumerate() {
             if sp_params.config.vary.iter().any(|&i| i == idx) {
                 *sp += 15.0;
             }

@@ -110,7 +110,7 @@ impl TalentPoints {
 
 #[derive(Debug, Clone, Default)]
 pub struct TeamTalentPoints {
-    team: Vec<TalentPoints>,
+    pub team: Vec<TalentPoints>,
 }
 
 impl TeamTalentPoints {
@@ -171,6 +171,8 @@ pub enum Action {
     Mqg,
     PowerInfusion,
     Berserking,
+    ArcanePower,
+    PresenceOfMind,
 }
 
 impl fmt::Display for Action {
@@ -188,7 +190,9 @@ impl fmt::Display for Action {
             Action::Zhc => write!(f, "ZHC"),
             Action::Mqg => write!(f, "MQG"),
             Action::PowerInfusion => write!(f, "Power Infusion"),
-            Action::Berserking => write!(f, "Berserking")
+            Action::Berserking => write!(f, "Berserking"),
+            Action::ArcanePower => write!(f, "Arcane Power"),
+            Action::PresenceOfMind => write!(f, "Presence of Mind"),
         }
     }
 }
@@ -198,6 +202,7 @@ impl fmt::Display for Action {
 pub enum ConsumeBuff {
     GreaterArcaneElixir,
     ElixirOfGreaterFirepower,
+    ElixirOfFrostPower,
     FlaskOfSupremePower,
     BlessedWizardOil,
     BrilliantWizardOil,
@@ -307,6 +312,7 @@ pub const SCORCH_MULTIPLIER: f64 = 0.03;   // +3% fire vuln per stack
 pub const FIRE_BLAST_COOLDOWN: f64 = 7.0;  // assumes 2 talent points
 
 pub const POWER_INFUSION: f64 = 0.20;
+pub const ARCANE_POWER: f64 = 0.3;
 pub const MQG_HASTE: f64 = 0.33;           // Mind Quickening Gem cast speed bonus
 
 pub const NUM_BUFFS: usize = 4;            // Sapp, TOEP, ZHC, MQG
@@ -317,6 +323,10 @@ pub const PI_DURATION: f64 = 15.0;
 pub const PI_COOLDOWN: f64 = 180.0;
 pub const BERSERK_DURATION: f64 = 10.0;
 pub const BERSERK_COOLDOWN: f64 = 180.0;
+
+pub const AP_COOLDOWN: f64 = 180.0;
+pub const AP_DURATION: f64 = 15.0;
+pub const POM_COOLDOWN: f64 = 180.0;
 
 /// Flat damage added per spell hit while active (Sapp, TOEP, ZHC)
 pub const BUFF_DAMAGE: [f64; NUM_DAMAGE_BUFFS] = [130.0, 175.0, 204.0];
@@ -381,8 +391,6 @@ pub const fn buff_cast_action(buff: Buff) -> Action {
 pub struct ConstantsConfig {
     pub fireball_rank: u8,        // default 12
     pub frostbolt_rank: u8,       // default 11
-    pub frostbolt_talented: bool, // +6% dmg; 2.5s talented cast
-    pub incinerate: bool,         // +4% crit chance bonus to Scorch/Fire Blast
     pub simple_spell: bool,       // use simplified bases/ranges
 }
 
@@ -391,8 +399,6 @@ impl Default for ConstantsConfig {
         Self {
             fireball_rank: 12,
             frostbolt_rank: 11,
-            frostbolt_talented: false,
-            incinerate: true,
             simple_spell: false,
         }
     }
@@ -410,13 +416,18 @@ pub struct Constants {
     pub is_scorch: [bool; NUM_SPELLS],
     pub is_fire: [bool; NUM_SPELLS],
     pub incin_bonus: [f64; NUM_SPELLS],
+    pub scorch_chance: f64,
+    pub can_pyro: bool,
 
     /// Cast time contribution (without reaction delay); use GLOBAL_COOLDOWN for Action::Gcd
     pub cast_time: [f64; NUM_SPELLS],
     /// Projectile/travel time until impact for non-instant spells
     pub spell_travel: [f64; NUM_SPELLS],
 
+    pub fb_cooldown: f64,
+
     // Crit math (variant for talented Frostbolt is handled here)
+    pub is_ignite: bool,
     pub ignite_damage: f64,   // 0.2 of crit
     pub icrit_damage: f64,    // +0.5 for fire crits to emulate 150%
     pub crit_damage: f64,     // +0.5 normal or +1.0 for talented frostbolt
@@ -425,10 +436,15 @@ pub struct Constants {
 }
 
 impl Constants {
-    pub fn new(cfg: &ConstantsConfig) -> Self {
+    pub fn new(talents: &TalentPoints) -> Self {
+
+        let cfg = ConstantsConfig::default();
+
         // Base SP and damage multipliers
         let mut sp_multiplier = [0.428_571_429, 1.0, 1.0, 0.428_571_429, 0.814_285_714, 0.6];
-        let mut damage_multiplier = [1.1, 1.1, 1.1, 1.1, 1.0, 1.1]; // fire power; frostbolt starts 1.0
+        let fire_mult = (1.0 + 0.02 * talents.get(Talent::FirePower) as f64) * (1.0 + 0.01 * talents.get(Talent::ArcaneInstability) as f64);
+        let frost_mult = (1.0 + 0.02 * talents.get(Talent::PiercingIce) as f64) * (1.0 + 0.01 * talents.get(Talent::ArcaneInstability) as f64);
+        let damage_multiplier = [fire_mult, fire_mult, fire_mult, fire_mult, frost_mult, fire_mult]; 
 
         // Base and ranges: simplified or detailed
         let (mut spell_base, mut spell_range) = if cfg.simple_spell {
@@ -457,16 +473,8 @@ impl Constants {
             _ => {}
         }
 
-        // Talented Frostbolt adjustments
-        if cfg.frostbolt_talented {
-            damage_multiplier[Spell::Frostbolt as usize] = 1.06; // Piercing Ice 3/3
-        }
-
         // Cast times (base, before MQG/gcd math)
-        let mut cast_time = [1.5, 6.0, 3.0, 0.0, 3.0, 0.0];
-        if cfg.frostbolt_talented {
-            cast_time[Spell::Frostbolt as usize] = 2.5;
-        }
+        let mut cast_time = [1.5, 6.0, 3.5 - 0.1 * talents.get(Talent::ImprovedFireball) as f64, 0.0, 3.0 - 0.1 * talents.get(Talent::ImprovedFrostbolt) as f64, 0.0];
         if cfg.frostbolt_rank == 1 {
             cast_time[Spell::Frostbolt as usize] = 1.5;
         }
@@ -474,18 +482,26 @@ impl Constants {
         // Projectile/travel times (to impact)
         let spell_travel = [0.0, 0.875, 0.875, 0.0, 0.75, 0.0];
 
+        let fb_cooldown = FIRE_BLAST_COOLDOWN - 0.5 * talents.get(Talent::ImprovedFireBlast) as f64;
+
+        let can_pyro: bool = talents.get(Talent::Pryoblast) > 0;
+
         // Flags for spell schools
         let is_pyro = [false, true, false, false, false, false]; 
         let is_scorch = [true, false, false, false, false, false];
         let is_fire = [true, true, true, true, false, true];
 
         // Incinerate talent bonus to Scorch/Fire Blast crit chance
-        let incin_bonus = if cfg.incinerate { [0.04, 0.0, 0.0, 0.04, 0.0, 0.0] } else { [0.0; NUM_SPELLS] };
+        let incin_bonus = [0.02 * talents.get(Talent::Incinerate) as f64, 0.0, 0.0, 0.02 * talents.get(Talent::Incinerate) as f64, 0.0, 0.0];
+
+        // improved scorch
+        let scorch_chance: f64 = 0.33 * talents.get(Talent::ImprovedScorch) as f64;
 
         // Crit/ignite math
-        let ignite_damage = 0.2;
+        let is_ignite: bool = talents.get(Talent::Ignite) > 0;
+        let ignite_damage = 0.04 * talents.get(Talent::Ignite) as f64;
         let icrit_damage = 0.5; // +50% for fire crits
-        let crit_damage = if cfg.frostbolt_talented { 1.0 } else { 0.5 };
+        let crit_damage = 0.5 + 0.1 * talents.get(Talent::IceShards) as f64;
 
         let spell_trigger_t2_8p = [false, false, true, false, true, false];
 
@@ -497,6 +513,10 @@ impl Constants {
             is_pyro,
             is_scorch,
             is_fire,
+            can_pyro,
+            fb_cooldown,
+            scorch_chance,
+            is_ignite,
             incin_bonus,
             cast_time,
             spell_travel,

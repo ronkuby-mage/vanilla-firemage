@@ -127,7 +127,7 @@ export default {
     },
     baseStats(race) {
         let stats = this.stats();
-        stats.crit = 6.2;
+        stats.crit = 0.2;
 
         if (race == "Gnome") {
             stats.int = 132;
@@ -322,6 +322,8 @@ export default {
         let stats = this.baseStats(player.race);
         stats = this.addStats(stats, this.loadoutStats(player.loadout));
         stats = this.addStats(stats, player.bonus_stats);
+        stats.crit += player.talents[14]; // arcane instability
+        stats.crit += 2*player.talents[28]; // critical mass
 
         if (player.buffs.arcane_intellect)
             stats.int+= 31;
@@ -349,9 +351,11 @@ export default {
             stats.sp+= 35;
         if (player.buffs.elixir_greater_firepower)
             stats.sp_fire+= 40;
+        if (player.buffs.elixir_frost_power)
+            stats.sp_frost+= 15;
         if (player.buffs.flask_of_supreme_power)
             stats.sp+= 150;
-        if (player.buffs.blessed_weapon_oil)
+        if (player.buffs.blessed_wizard_oil)
             stats.sp+= 60;
         else if (player.buffs.brilliant_wizard_oil)
             stats.sp+= 36;
@@ -373,7 +377,6 @@ export default {
             stats.crit += 3;
 
         stats.int = Math.round(stats.int);
-        stats.sp += stats.sp_fire;
 
         return stats;
     }  

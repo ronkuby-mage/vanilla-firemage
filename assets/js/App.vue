@@ -8,7 +8,7 @@ import presets from "./presets";
 import items from "./items";
 import aplData from "./apl";
 import { mage as talentTree } from "./talents";
-import _ from "lodash";
+import {_, debounce} from "lodash";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { generateRaidsFromTemplate } from "./template";
 
@@ -57,12 +57,19 @@ const copyToClipboard = (str) => {
     document.execCommand("copy")
     document.body.removeChild(el);
 };
-const refreshTooltips = () => {
-    if (window.$WowheadPower) {
+const tooltipRefreshTrigger = computed(() => ({
+    tab: activeTab.value,
+    gearType: activeGearType.value,
+    slot: activeSlot.value,
+    playerId: activePlayer.value?.id,
+    itemSearch: activeTab.value === 'loadout' ? itemSearch.value : null
+}));
+const refreshTooltips = debounce(() => {
+    if (window.$WowheadPower && 
+        (activeTab.value === 'loadout' || activeTab.value === 'config')) {
         window.$WowheadPower.refreshLinks();
-        nextTick(window.$WowheadPower.refreshLinks);
     }
-};
+}, 300);
 /*
  * Stats
  */
@@ -146,6 +153,7 @@ const defaultBuffs = () => {
         gift_of_stormwind: false,
         elixir_greater_arcane: false,
         elixir_greater_firepower: false,
+        elixir_frost_power: false,
         brilliant_wizard_oil: false,       // "none" | "brilliant" | "blessed"
         blessed_wizard_oil: false,       // "none" | "brilliant" | "blessed"
         very_berry_cream: false,
@@ -181,6 +189,7 @@ const presetBuffs = () => {
         gift_of_stormwind: false,
         elixir_greater_arcane: true,
         elixir_greater_firepower: true,
+        elixir_frost_power: false,
         brilliant_wizard_oil: true,       // "none" | "brilliant" | "blessed"
         blessed_wizard_oil: false,       // "none" | "brilliant" | "blessed"
         very_berry_cream: true,
@@ -596,7 +605,6 @@ const simStats = (player) => {
     let stats = common.stats();
     stats = common.addStats(stats, common.loadoutStats(player.loadout));
     stats = common.addStats(stats, player.bonus_stats);
-    stats.sp += stats.sp_fire;
 
     return stats;
 };
@@ -661,6 +669,8 @@ const simBuffs = (player) => {
         buffs.flask_of_supreme_power = true;
     if (player.buffs.elixir_greater_firepower)
         buffs.elixir_greater_firepower = true;
+    if (player.buffs.elixir_frost_power)
+        buffs.elixir_frost_power = true;
     if (player.buffs.elixir_greater_arcane)
         buffs.elixir_greater_arcane = true;
     if (player.buffs.brilliant_wizard_oil)
@@ -1729,7 +1739,7 @@ const BuffExportKeys = () => {
         "blessing_of_kings", "atiesh_mage", "atiesh_warlock", "infallible_mind",
         "gift_of_stormwind", "songflower", "rallying_cry", "spirit_of_zandalar",
         "dire_maul_tribute", "elixir_greater_firepower", "elixir_greater_arcane",
-        "brilliant_wizard_oil", "blessed_wizard_oil", "runn_tum_tuber",
+        "brilliant_wizard_oil", "blessed_wizard_oil", "runn_tum_tuber", "elixir_frost_power"
     ];
 };
 const aplExportKeys = () => {
@@ -2259,7 +2269,7 @@ watch(() => settings.raid_id, (value) => {
         activeTab.value = "config";
     }
 });
-watch(() => itemSearch.value, refreshTooltips);
+watch(tooltipRefreshTrigger, refreshTooltips, { deep: true });
 watch(() => activePlayerId.value, (value) => {
     if (activeTab.value == "loadout") {
         nextTick(() => {
@@ -2270,7 +2280,6 @@ watch(() => activePlayerId.value, (value) => {
 });
 watch(() => activeTab.value, (value) => {
     if (value == "loadout") {
-        refreshTooltips();
         nextTick(() => {
             if (itemSearchInput.value)
                 itemSearchInput.value.focus();
@@ -2278,13 +2287,10 @@ watch(() => activeTab.value, (value) => {
     }
     exportSuccess.value = false;
 });
-watch(() => activeGearType.value, refreshTooltips);
-watch(() => activeSlot.value, refreshTooltips);
 watch(() => activePlayer.value, () => {
     if (activePlayer.value) {
         playerStats.value = visualStats(activePlayer.value);
         syncBuffs();
-        refreshTooltips();
     }
 }, {deep: true});
 watch(() => result.value, () => {
@@ -2474,7 +2480,7 @@ onMounted(() => {
                             <div class="form-cols">
                                 <div class="form-item">
                                     <label>Name</label>
-                                    <input type="text" v-model.number="activeRaid.name" @input="onRaidNameChange">
+                                    <input type="text" v-model="activeRaid.name" @input="onRaidNameChange">
                                 </div>
                                 <div class="form-item">
                                     <label>Faction</label>
@@ -2526,7 +2532,7 @@ onMounted(() => {
                                     </div>
 
                                     <div class="form-item" style="margin:0;">
-                                        <input type="text" v-model="activeRaid.config.arcanite_dragonling"
+                                        <input type="text" v-model.number="activeRaid.config.arcanite_dragonling"
                                          style="width:48px; height:30px; line-height:30px; padding:0 8px; box-sizing:border-box; text-align:center; display:inline-block;">
                                     </div>
 
@@ -2538,15 +2544,15 @@ onMounted(() => {
                                         </label>
                                     </div>
                                     <div class="form-item" style="margin:0;">
-                                        <input type="text" v-model="activeRaid.config.nightfall1"
+                                        <input type="text" v-model.number="activeRaid.config.nightfall1"
                                          style="width:48px; height:30px; line-height:30px; padding:0 8px; box-sizing:border-box; text-align:center; display:inline-block;">
                                     </div>
                                     <div class="form-item" style="margin:0;">
-                                        <input type="text" v-model="activeRaid.config.nightfall2"
+                                        <input type="text" v-model.number="activeRaid.config.nightfall2"
                                          style="width:48px; height:30px; line-height:30px; padding:0 8px; box-sizing:border-box; text-align:center; display:inline-block;">
                                     </div>
                                     <div class="form-item" style="margin:0;">
-                                        <input type="text" v-model="activeRaid.config.nightfall3"
+                                        <input type="text" v-model.number="activeRaid.config.nightfall3"
                                          style="width:48px; height:30px; line-height:30px; padding:0 8px; box-sizing:border-box; text-align:center; display:inline-block;">
                                     </div>
                                     <div class="icon-checkboxes"  style="margin:0;">
@@ -2584,7 +2590,7 @@ onMounted(() => {
                             <div class="form-cols">
                                 <div class="form-item">
                                     <label>Name</label>
-                                    <input type="text" v-model.number="activePlayer.name">
+                                    <input type="text" v-model="activePlayer.name">
                                 </div>
                                 <div class="form-item">
                                     <label>Race</label>
@@ -2674,6 +2680,11 @@ onMounted(() => {
                                         <input type="checkbox" v-model="activePlayer.buffs.elixir_greater_firepower">
                                         <wowicon icon="elixir_greater_firepower" />
                                         <tooltip>Elixir of Greater Firepower</tooltip>
+                                    </label>
+                                    <label>
+                                        <input type="checkbox" v-model="activePlayer.buffs.elixir_frost_power">
+                                        <wowicon icon="elixir_frost_power" />
+                                        <tooltip>Elixir of Frost Power</tooltip>
                                     </label>
                                     <label>
                                         <input type="checkbox" v-model="activePlayer.buffs.brilliant_wizard_oil" @click="playerConfigExclusive($event, 'brilliant_wizard_oil', 'blessed_wizard_oil')">
@@ -2849,25 +2860,34 @@ onMounted(() => {
                             <table>
                                 <tbody>
                                     <tr>
-                                        <td>Spell power</td>
+                                        <td>Spell power (fire)</td>
                                         <td>
                                             <span>
-                                                {{ playerStats.sp }}
+                                                {{ playerStats.sp + playerStats.sp_fire}}
                                                 <tooltip position="left"><spell-power :value="playerStats" /></tooltip>
                                             </span>
                                         </td>
                                     </tr>
                                     <tr>
-                                        <td>Crit</td>
+                                        <td>Crit Chance (fire)</td>
                                         <td>{{ playerStats.crit.toFixed(2) }}%</td>
                                     </tr>
                                     <tr>
-                                        <td>Hit</td>
+                                        <td>+Hit Chance</td>
                                         <td>{{ playerStats.hit.toFixed() }}%</td>
                                     </tr>
                                     <tr>
                                         <td>Intellect</td>
                                         <td>{{ playerStats.int }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Spell power (frost)</td>
+                                        <td>
+                                            <span>
+                                                {{ playerStats.sp + playerStats.sp_frost}}
+                                                <tooltip position="left"><spell-power :value="playerStats" /></tooltip>
+                                            </span>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>

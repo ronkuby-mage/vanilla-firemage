@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUpdated, nextTick } from "vue";
+import { ref, onMounted, onUpdated } from "vue";
 
 const props = defineProps({
     position: {

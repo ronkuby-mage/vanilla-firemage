@@ -357,7 +357,7 @@ export default {
             back: { item_id: 19857, enchant_id: null },
             chest: { item_id: 19682, enchant_id: 20025 },
             wrist: { item_id: 19374, enchant_id: 20008 },
-            hands: { item_id: 18808, enchant_id: null },
+            hands: { item_id: 18808, enchant_id: 25078 },
             waist: { item_id: 19136, enchant_id: null },
             legs: { item_id: 19683, enchant_id: 24164 },
             feet: { item_id: 19684, enchant_id: 13890 },

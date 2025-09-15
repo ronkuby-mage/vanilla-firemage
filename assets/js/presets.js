@@ -321,18 +321,26 @@ const defaultApls = () => {
     items = [];    
 
     item = apl.item();
-    item.condition.condition_type = apl.condition_type.FALSE;
-    item.condition.values = [apl.value()];
-    item.condition.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
-    item.condition.values[0].vint = common.auras.POWER_INFUSION;
+    item.condition.condition_type = apl.condition_type.TRUE;
+    item.condition.condition_type = apl.condition_type.AND;
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.FALSE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
+    cond.values[0].vint = common.cooldowns.POWER_INFUSION;
+    item.condition.conditions.push(cond);
+    cond = apl.condition();
+    cond.condition_type = apl.condition_type.FALSE;
+    cond.values = [apl.value()];
+    cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+    cond.values[0].vint = common.cooldowns.POWER_INFUSION;
+    item.condition.conditions.push(cond);
     item.action = apl.getAction("PowerInfusion");
     items.push(item);
-
     amber.fixedSequence.action = _.cloneDeep(initial_actions);
     amber.items = _.cloneDeep(items);
     amber.defaultAction.action = apl.getAction("Fireball");
     data.push(amber);
-
 
     let blank = apl.apl();
     blank.id = "preset-blank";
@@ -346,7 +354,8 @@ const defaultApls = () => {
 export default {
     apls: defaultApls(),
     talents: [
-        { name: "Fire", talents: common.parseWowheadTalents("23000502-5052122123033151-003") },
+        { name: "Deep Fire", talents: common.parseWowheadTalents("23000502-5052122123033151-003") },
+        { name: "AP Fire", talents: common.parseWowheadTalents("2300250310231531-505202012-003") },
     ],
     loadouts: [{
         name: "Phase 5 Enter",

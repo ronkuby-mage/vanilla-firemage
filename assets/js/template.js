@@ -3,6 +3,7 @@ import apl from "./apl";
 import common from "./common";
 import ids from "./items";
 import ignite from "./ignite";
+import presets from "./presets";
 
 const shortFightThreshold = 25.0;
 const mediumFightThreshold = 45.0;
@@ -27,7 +28,8 @@ const preScorches = {
 }
 const PreScorch = Object.freeze({
     PRESCORCH_YES: "",
-    PRESCORCH_NO: "no-scorch"
+    PRESCORCH_NO: "no-scorch",
+    PRESCORCH_APFIRE: "ap-fire",
 });
 const Buffer = Object.freeze({
     BUFFER_FIREBALL: "gcd",
@@ -150,7 +152,7 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
     fixedSequence.key = "Sequence";
     if (derivedOpening == OpeningPermutation.TWO_TRINKETS) { // damage + MQG, doing damage
         fixedSequence.sequence.push(apl.getAction(trinketToCast[playerTrinket[0]]));
-    } else if (derivedOpening == OpeningPermutation.MQG && preScorch == PreScorch.PRESCORCH_NO) {
+    } else if (derivedOpening == OpeningPermutation.MQG && (preScorch == PreScorch.PRESCORCH_NO || preScorch == PreScorch.PRESCORCH_APFIRE)) {
         fixedSequence.sequence.push(apl.getAction("MindQuickening"));
     }
     if (preScorch == PreScorch.PRESCORCH_YES) {
@@ -163,7 +165,8 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
         // slot 2 priority
         fixedSequence.sequence.push(apl.getAction(trinketToCast[playerTrinket[1]]));
     }
-    fixedSequence.sequence.push(apl.getAction("Combustion"));
+    if (preScorch != PreScorch.PRESCORCH_APFIRE)
+        fixedSequence.sequence.push(apl.getAction("Combustion"));
     if (bufferSpell == Buffer.BUFFER_PYROBLAST) {
         fixedSequence.sequence.push(apl.getAction("Pyroblast"));
         if (havePI) {
@@ -173,16 +176,49 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
         if (bufferSpell == Buffer.BUFFER_FIREBALL) {
             fixedSequence.sequence.push(apl.getAction("None"));
         }
-        fixedSequence.sequence.push(apl.getAction("Fireball"));
-        if (havePI) {
-            fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
+        if (preScorch != PreScorch.PRESCORCH_APFIRE) {
+            fixedSequence.sequence.push(apl.getAction("Fireball"));
+            if (havePI)
+                fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
         }
     }
     if (derivedOpening == OpeningPermutation.MQG && preScorch == PreScorch.PRESCORCH_YES) {
         fixedSequence.sequence.push(apl.getAction("MindQuickening"));
     }
+    if (preScorch == PreScorch.PRESCORCH_APFIRE) {
+        fixedSequence.sequence.push(apl.getAction("ArcanePower"));
+        fixedSequence.sequence.push(apl.getAction("PresenceOfMind"));
+        fixedSequence.sequence.push(apl.getAction("Pyroblast"));
+    }
 
     let cond, item, items = [];
+
+    // check for PI cooldown
+    if (havePI && preScorch == PreScorch.PRESCORCH_APFIRE) {
+        item = apl.item();
+        item.condition.condition_type = apl.condition_type.TRUE;
+        item.condition.condition_type = apl.condition_type.AND;
+        cond = apl.condition();
+        cond.condition_type = apl.condition_type.FALSE;
+        cond.values = [apl.value()];
+        cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+        cond.values[0].vint = common.auras.ARCANE_POWER;
+        item.condition.conditions.push(cond);
+        cond = apl.condition();
+        cond.condition_type = apl.condition_type.FALSE;
+        cond.values = [apl.value()];
+        cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
+        cond.values[0].vint = common.cooldowns.POWER_INFUSION;
+        item.condition.conditions.push(cond);
+        cond = apl.condition();
+        cond.condition_type = apl.condition_type.FALSE;
+        cond.values = [apl.value()];
+        cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+        cond.values[0].vint = common.cooldowns.POWER_INFUSION;
+        item.condition.conditions.push(cond);
+        item.action = apl.getAction("PowerInfusion");
+        items.push(item);
+    }
 
     // check for trinket cooldown
     if (derivedOpening == OpeningPermutation.TWO_DAMAGE || derivedOpening == OpeningPermutation.TWO_TRINKETS) {
@@ -350,12 +386,15 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
     // first determine whether no prescorch should be an option
     let preScorchPermutations = [PreScorch.PRESCORCH_YES];
     if (encounterDuration < mediumFightThreshold) {
-        preScorchPermutations.push(PreScorch.PRESCORCH_NO)
+        preScorchPermutations.push(PreScorch.PRESCORCH_NO);
+    }
+    if (encounterDuration < shortFightThreshold) {
+        preScorchPermutations.push(PreScorch.PRESCORCH_APFIRE);
     }
     // loop over opening permutation
     preScorchPermutations.forEach(preScorch => {
         const bufferSpells = [];
-        if (preScorch == PreScorch.PRESCORCH_NO) {
+        if (preScorch == PreScorch.PRESCORCH_NO || preScorch == PreScorch.PRESCORCH_APFIRE) {
             bufferSpells.push(Buffer.BUFFER_NOTHING);
         } else {
             bufferSpells.push(Buffer.BUFFER_FIREBALL);            
@@ -440,8 +479,12 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                             derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
                             playerTrinket = [0, player.loadout.trinket2.item_id];
                         } 
-                        // implied else is that erivedOpening = OpeningPermutation.BY_PLAYER, which never meets any condition
+                        // implied else is that derivedOpening = OpeningPermutation.BY_PLAYER, which never meets any condition
                     }
+                    let spec = "Deep Fire";
+                    if (preScorch == PreScorch.PRESCORCH_APFIRE)
+                        spec = "AP Fire";
+                    player.talents = presets.talents.find(item => item.name == spec).talents;
                     playerTrinkets.push(_.cloneDeep(playerTrinket));
                     derivedOpenings.push(derivedOpening);
                     const stats = common.displayStats(player);

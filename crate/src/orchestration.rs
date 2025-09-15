@@ -323,9 +323,11 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
 
             st.lanes[lane_idx].hit_chance = (st.lanes[lane_idx].hit_chance + 0.02 * talent_points.get(Talent::ElementalPrecision) as f64).min(0.99);
 
-            if talent_points.get(Talent::Combustion) < 1 { st.lanes[lane_idx].comb_cooldown = f64::INFINITY }
-            if talent_points.get(Talent::ArcanePower) > 0 { st.lanes[lane_idx].ap_cooldown = 0.0 }
-            if talent_points.get(Talent::PresenceOfMind) > 0 { st.lanes[lane_idx].pom_cooldown = 0.0 }
+            if talent_points.get(Talent::Combustion) < 1 { st.lanes[lane_idx].comb_cooldown = f64::INFINITY; }
+            if talent_points.get(Talent::ArcanePower) > 0 { st.lanes[lane_idx].ap_cooldown = 0.0; }
+            if talent_points.get(Talent::PresenceOfMind) > 0 { st.lanes[lane_idx].pom_cooldown = 0.0; }
+
+            if talent_points.get(Talent::Pryoblast) >0 { st.lanes[lane_idx].have_pyro = true; }
         }
     }
     st.subtime(overall_delay); // set delay after all time initializations

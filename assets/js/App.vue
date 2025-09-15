@@ -3,7 +3,6 @@ import SimContainer from "./sim_container";
 import Tutorial from "./Components/Tutorial.vue";
 import { computed, ref, reactive, watch, onMounted, nextTick } from "vue";
 import common from "./common";
-import icons from "./icons";
 import presets from "./presets";
 import items from "./items";
 import aplData from "./apl";

@@ -306,10 +306,14 @@ pub const IGNITE_STACK: u8 = 5;
 pub const SCORCH_TIME: f64 = 30.0;
 pub const SCORCH_STACK: u8 = 5;
 
+pub const WC_TIME: f64 = 15.0;
+pub const WC_STACK: u8 = 5;
+pub const PER_WC: f64 = 0.02;
+
 pub const COE_MULTIPLIER: f64 = 1.10;      // Curse of Elements multiplier
 pub const SCORCH_MULTIPLIER: f64 = 0.03;   // +3% fire vuln per stack
 
-pub const FIRE_BLAST_COOLDOWN: f64 = 7.0;  // assumes 2 talent points
+pub const FIRE_BLAST_COOLDOWN: f64 = 8.0; 
 
 pub const POWER_INFUSION: f64 = 0.20;
 pub const ARCANE_POWER: f64 = 0.3;
@@ -417,6 +421,7 @@ pub struct Constants {
     pub is_fire: [bool; NUM_SPELLS],
     pub incin_bonus: [f64; NUM_SPELLS],
     pub scorch_chance: f64,
+    pub wc_chance: f64,
     pub can_pyro: bool,
 
     /// Cast time contribution (without reaction delay); use GLOBAL_COOLDOWN for Action::Gcd
@@ -497,6 +502,9 @@ impl Constants {
         // improved scorch
         let scorch_chance: f64 = 0.33 * talents.get(Talent::ImprovedScorch) as f64;
 
+        // winter's chill
+        let wc_chance: f64 = 0.2 * talents.get(Talent::WintersChill) as f64;
+
         // Crit/ignite math
         let is_ignite: bool = talents.get(Talent::Ignite) > 0;
         let ignite_damage = 0.04 * talents.get(Talent::Ignite) as f64;
@@ -518,6 +526,7 @@ impl Constants {
             scorch_chance,
             is_ignite,
             incin_bonus,
+            wc_chance,
             cast_time,
             spell_travel,
             ignite_damage,

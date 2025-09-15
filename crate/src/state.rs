@@ -34,6 +34,8 @@ pub struct Boss {
     pub tick_timer: f64,
     pub scorch_timer: f64,
     pub scorch_count: u8,
+    pub wc_timer: f64,
+    pub wc_count: u8,
     pub spell_vulnerability: f64,
     pub t3_6p: f64,
     pub t2_8p: f64,
@@ -53,6 +55,8 @@ impl Default for Boss {
             tick_timer: f64::INFINITY,
             scorch_timer: 0.0,
             scorch_count: 0,
+            wc_timer: 0.0,
+            wc_count: 0,
             spell_vulnerability: 0.0,
             t3_6p: 0.0,
             t2_8p: 0.0,
@@ -87,6 +91,7 @@ pub struct MageLane {
     pub pom_cooldown: f64,
     pub berserk_timer: f64,
     pub berserk_cooldown: f64,
+    pub have_pyro: bool, // for decision
     pub pyro_timer: f64,
     pub pyro_count: u8,
     pub pyro_value: f64,
@@ -123,6 +128,7 @@ impl Default for MageLane {
             pom_cooldown: f64::INFINITY,
             berserk_timer: 0.0,
             berserk_cooldown: f64::INFINITY,
+            have_pyro: false,
             pyro_timer: f64::INFINITY,
             pyro_count: 0,
             pyro_value: 0.0,
@@ -149,7 +155,6 @@ pub struct PlayerMeta {
     pub t3_6p_slots: Vec<usize>,
     pub t2_8p_slots: Vec<usize>,
     pub berserk_slots: Vec<f64>,
-    pub target_slots: Vec<usize>,
     pub nightfall_period: Vec<f64>,
     pub vulnerability: f64,
     pub coe: f64,
@@ -206,6 +211,16 @@ fn buff_string(mage_lane: &mut MageLane) -> String {
     } else {
         buffs.push_str("  ");
     }
+    if mage_lane.ap_timer > 0.0 {
+        buffs.push_str("AP");
+    } else {
+        buffs.push_str("  ");
+    }
+    if mage_lane.pom_active {
+        buffs.push_str("PoM");
+    } else {
+        buffs.push_str("  ");
+    }
     if mage_lane.berserk_timer > 0.0 {
         buffs.push_str("BSK");
     } else {
@@ -227,6 +242,9 @@ fn debuff_string(boss: &mut Boss, dragonling_active: bool) -> String {
     } else {
         debuffs.push_str("ignite:0 ");
     }
+    if boss.wc_timer > 0.0 {
+        debuffs.push_str(format!("wc:{}({:.2}) ", boss.wc_count, boss.wc_timer).as_str());
+    } // no else.  this is a fire simulator
     if dragonling_active {
         debuffs.push_str("dragonling ");
     }
@@ -320,6 +338,7 @@ impl State {
         self.boss.ignite_timer -= dt;
         self.boss.tick_timer -= dt;
         self.boss.scorch_timer -= dt;
+        self.boss.wc_timer -= dt;
         self.boss.spell_vulnerability -= dt;
         for l in &mut self.lanes {
             l.cast_timer -= dt;
@@ -518,19 +537,22 @@ impl State {
                     }
                 }
                 A::PowerInfusion => {
-                    let slot = l.pi_cooldown.iter().enumerate().min_by(|a, b| a.1.partial_cmp(b.1).unwrap()).map(|(i, _)| i).unwrap();
+                    // PI will not override AP
+                    // Technically the player can cancel AP midcast (and would want to if AP would fall off before endcast)
+                    if l.ap_timer <= 0.0 {
+                        let slot = l.pi_cooldown.iter().enumerate().min_by(|a, b| a.1.partial_cmp(b.1).unwrap()).map(|(i, _)| i).unwrap();
 
-                    // start active duration and cooldown
-                    l.pi_timer[slot] = C::PI_DURATION;
-                    l.pi_cooldown[slot] = C::PI_COOLDOWN;
-                    //l.ap_cooldown = l.ap_cooldown.max(C::PI_DURATION); not technically locked out
+                        // start active duration and cooldown
+                        l.pi_timer[slot] = C::PI_DURATION;
+                        l.pi_cooldown[slot] = C::PI_COOLDOWN;
+                    }
                 }
                 A::ArcanePower => {
                     l.ap_timer = C::AP_DURATION;
                     l.ap_cooldown = C::AP_COOLDOWN;
-                    // PI is locked out
-                    for pi in l.pi_cooldown.iter_mut() {
-                        *pi = (*pi).max(C::AP_DURATION);
+                    // PI is knocked off
+                    for pi in l.pi_timer.iter_mut() {
+                        *pi = 0.0;
                     }
                 }
                 A::PresenceOfMind => {
@@ -592,7 +614,6 @@ impl State {
         self.subtime(dt);
 
         if !self.in_progress() { return }
-        let lanes_len = self.lanes.len();
 
         // grab lane fields you need for early checks
         let lane_hit = self.lanes[lane].hit_chance;
@@ -612,9 +633,7 @@ impl State {
         }
 
         // ---- read-only stuff from &self (no &mut borrow yet) ----
-        let targeted_all = self.meta.target_slots.len() == lanes_len;
         let is_cleaner = self.meta.cleaner_slots.iter().any(|&i| i == lane);
-        let is_target = targeted_all || self.meta.target_slots.iter().any(|&i| i == lane);
         let is_dmf = self.meta.dmf_slots.iter().any(|&i| i == lane);
         let is_sr = self.meta.sr_slots.iter().any(|&i| i == lane);
         let is_ts = self.meta.ts_slots.iter().any(|&i| i == lane);
@@ -660,7 +679,8 @@ impl State {
         // getting rid of buffer bonus for now
         //let comb_bonus = if is_fire && !is_scorch && l.comb_left > 0 { C::PER_COMBUSTION * (l.comb_stack as f64) } else { 0.0 };
         let comb_bonus = if is_fire && l.comb_left > 0 { C::PER_COMBUSTION * (l.comb_stack as f64) } else { 0.0 };
-        let crit_chance = (if is_fire { l.crit_chance_fire} else { l.crit_chance_frost } + comb_bonus + k_lane.incin_bonus[spell_type]).clamp(0.0, 1.0);
+        let wc_bonus: f64 = if !is_fire && self.boss.wc_timer > 0.0 { C::PER_WC * self.boss.wc_count as f64 } else { 0.0 };
+        let crit_chance = (if is_fire { l.crit_chance_fire } else { l.crit_chance_frost } + comb_bonus + wc_bonus + k_lane.incin_bonus[spell_type]).clamp(0.0, 1.0);
         let is_crit = rng.r#gen::<f64>() < crit_chance;
 
         if is_crit {
@@ -702,7 +722,6 @@ impl State {
                 // subtract previous damage from totals
                 self.totals.total_damage -= spell_damage;
                 l.damage -= spell_damage;
-                //if is_target { self.totals.player_damage -= spell_damage; }
 
                 // calculate crit damage
                 let crit_line = (1.0 + k_lane.icrit_damage) * spell_damage; // 1.5x for fire crit ledger
@@ -711,7 +730,6 @@ impl State {
                 // add crit damage
                 self.totals.total_damage += crit_line * crit_mult_line;
                 l.damage += crit_line * crit_mult_line;
-                //if is_target { self.totals.player_damage += crit_line * crit_mult_line; }
 
                 // reset spell damage
                 spell_damage = crit_line * crit_mult_line;
@@ -721,11 +739,9 @@ impl State {
             } else {
                 let extra = k_lane.crit_damage * spell_damage; // +0.5 or +1.0
                 self.totals.total_damage += extra;
-                if is_target { self.totals.player_damage += extra; }
+                l.damage += extra;
+                spell_damage += extra;
             }
-        }
-        if self.boss.scorch_timer <= 0.0 {
-            self.boss.scorch_count = 0
         }
         if k_lane.is_scorch[spell_type] {
             if rng.r#gen::<f64>() < k_lane.scorch_chance.min(lane_hit) {
@@ -734,10 +750,19 @@ impl State {
                     if self.boss.scorch_refresh_history.len() > C::MAX_DEBUFF_HISTORY {
                         self.boss.scorch_refresh_history.remove(0);
                     }
+                } else {
+                    self.boss.scorch_count = 0;
                 }
 
                 self.boss.scorch_timer = C::SCORCH_TIME;
                 self.boss.scorch_count = (self.boss.scorch_count + 1).min(C::SCORCH_STACK);
+            }
+        }
+        if !is_fire && k_lane.wc_chance > 0.0 {
+            if rng.r#gen::<f64>() < k_lane.wc_chance.min(lane_hit) {
+                if self.boss.wc_timer <= 0.0 { self.boss.wc_count = 0; }
+                self.boss.wc_timer = C::WC_TIME;
+                self.boss.wc_count = (self.boss.wc_count + 1).min(C::WC_STACK);
             }
         }
 
@@ -767,13 +792,10 @@ impl State {
         if is_fire { l.comb_stack = l.comb_stack.saturating_add(1); }
 
         if self.log_enabled {
-            //log::debug!("hello buf damage = {}", buff_damage);
             if is_crit {
                 self.log_spell_impact(lane as i32, spell_string, spell_damage, partial, SpellResult::Crit);
-                //println!("  {:6.2} mage {} spell {} CRIT for {}", self.global.running_time, lane, spell_string, spell_damage)
             } else {
                 self.log_spell_impact(lane as i32, spell_string, spell_damage, partial, SpellResult::Hit);
-                //println!("  {:6.2} mage {} spell {} hit  for {}", self.global.running_time, lane, spell_string, spell_damage)
             }
         } else {
             self.damage_log.push(DamageAccumulator { time: self.global.running_time, damage: spell_damage});
@@ -846,10 +868,7 @@ impl State {
         if !self.in_progress() { return }
 
         // Snapshot lane and cast type
-        let lanes_len = self.lanes.len();
         let l = &mut self.lanes[lane];
-        let targeted_all = self.meta.target_slots.len() == lanes_len;
-        let is_target = targeted_all || self.meta.target_slots.iter().any(|&i| i == lane);
 
         l.pyro_count -= 1;
         if l.pyro_count > 0 { l.pyro_timer = C::PYRO_TIMER; } else { l.pyro_timer = f64::INFINITY }
@@ -860,7 +879,7 @@ impl State {
 
         let damage = mult * l.pyro_value;
         self.totals.total_damage += damage;
-        if is_target { self.totals.player_damage += damage; }
+        l.damage += damage;
 
         if self.log_enabled {
             self.log_spell_impact(lane as i32, Spell::PyroDot, damage, 1.0, SpellResult::Hit);

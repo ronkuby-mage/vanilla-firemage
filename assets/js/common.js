@@ -103,6 +103,7 @@ export default {
         EVOCATION: 12051,
         FIRE_BLAST: 10199,
         PRESENCE_OF_MIND: 12043,
+        POWER_INFUSION: 10060,
         // Trinkets
         ARCANE_POTENCY: 24544,
         BURST_OF_KNOWLEDGE: 15646,

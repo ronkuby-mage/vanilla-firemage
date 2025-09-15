@@ -33,6 +33,8 @@ fn action_ready_for_action(st: &State, lane: usize, action: Action) -> bool {
         return st.lanes[lane].pom_cooldown <= 0.0;
     } else if action == Action::Berserking {
         return st.lanes[lane].berserk_cooldown <= 0.0;
+    } else if action == Action::Pyroblast {
+        return st.lanes[lane].have_pyro;
     }
 
     true

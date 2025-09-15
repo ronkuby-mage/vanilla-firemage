@@ -37,9 +37,12 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
 
     if params.config.target.len() > 0 && params.config.vary.len() > 0 && params.config.do_stat_weights {
         let mut sp_params = params.clone();
-        for (idx, sp) in sp_params.stats.fire_power.iter_mut().enumerate() {
+        for (idx, (fire_sp, frost_sp)) in sp_params.stats.fire_power.iter_mut()
+            .zip(sp_params.stats.frost_power.iter_mut())
+            .enumerate() {
             if sp_params.config.vary.iter().any(|&i| i == idx) {
-                *sp += 15.0;
+                *fire_sp += 15.0;
+                *frost_sp += 15.0;
             }
         }
         let results_sp: SimulationsResult = run_many_with::<_, _>(&sp_params, &make_decider, iterations, seed);

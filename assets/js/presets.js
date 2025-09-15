@@ -356,6 +356,8 @@ export default {
     talents: [
         { name: "Deep Fire", talents: common.parseWowheadTalents("23000502-5052122123033151-003") },
         { name: "AP Fire", talents: common.parseWowheadTalents("2300250310231531-505202012-003") },
+        { name: "AP Frost", talents: common.parseWowheadTalents("2300250310231531--053500030022") },
+        { name: "WC Frost", talents: common.parseWowheadTalents("2300250300231--0535000300230135") },
     ],
     loadouts: [{
         name: "Phase 5 Enter",

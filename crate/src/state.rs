@@ -155,7 +155,6 @@ pub struct PlayerMeta {
     pub t3_6p_slots: Vec<usize>,
     pub t2_8p_slots: Vec<usize>,
     pub berserk_slots: Vec<f64>,
-    pub target_slots: Vec<usize>,
     pub nightfall_period: Vec<f64>,
     pub vulnerability: f64,
     pub coe: f64,
@@ -243,6 +242,9 @@ fn debuff_string(boss: &mut Boss, dragonling_active: bool) -> String {
     } else {
         debuffs.push_str("ignite:0 ");
     }
+    if boss.wc_timer > 0.0 {
+        debuffs.push_str(format!("wc:{}({:.2}) ", boss.wc_count, boss.wc_timer).as_str());
+    } // no else.  this is a fire simulator
     if dragonling_active {
         debuffs.push_str("dragonling ");
     }
@@ -612,7 +614,6 @@ impl State {
         self.subtime(dt);
 
         if !self.in_progress() { return }
-        let lanes_len = self.lanes.len();
 
         // grab lane fields you need for early checks
         let lane_hit = self.lanes[lane].hit_chance;
@@ -632,9 +633,7 @@ impl State {
         }
 
         // ---- read-only stuff from &self (no &mut borrow yet) ----
-        let targeted_all = self.meta.target_slots.len() == lanes_len;
         let is_cleaner = self.meta.cleaner_slots.iter().any(|&i| i == lane);
-        let is_target = targeted_all || self.meta.target_slots.iter().any(|&i| i == lane);
         let is_dmf = self.meta.dmf_slots.iter().any(|&i| i == lane);
         let is_sr = self.meta.sr_slots.iter().any(|&i| i == lane);
         let is_ts = self.meta.ts_slots.iter().any(|&i| i == lane);
@@ -723,7 +722,6 @@ impl State {
                 // subtract previous damage from totals
                 self.totals.total_damage -= spell_damage;
                 l.damage -= spell_damage;
-                //if is_target { self.totals.player_damage -= spell_damage; }
 
                 // calculate crit damage
                 let crit_line = (1.0 + k_lane.icrit_damage) * spell_damage; // 1.5x for fire crit ledger
@@ -732,7 +730,6 @@ impl State {
                 // add crit damage
                 self.totals.total_damage += crit_line * crit_mult_line;
                 l.damage += crit_line * crit_mult_line;
-                //if is_target { self.totals.player_damage += crit_line * crit_mult_line; }
 
                 // reset spell damage
                 spell_damage = crit_line * crit_mult_line;
@@ -742,7 +739,8 @@ impl State {
             } else {
                 let extra = k_lane.crit_damage * spell_damage; // +0.5 or +1.0
                 self.totals.total_damage += extra;
-                if is_target { self.totals.player_damage += extra; }
+                l.damage += extra;
+                spell_damage += extra;
             }
         }
         if k_lane.is_scorch[spell_type] {
@@ -870,10 +868,7 @@ impl State {
         if !self.in_progress() { return }
 
         // Snapshot lane and cast type
-        let lanes_len = self.lanes.len();
         let l = &mut self.lanes[lane];
-        let targeted_all = self.meta.target_slots.len() == lanes_len;
-        let is_target = targeted_all || self.meta.target_slots.iter().any(|&i| i == lane);
 
         l.pyro_count -= 1;
         if l.pyro_count > 0 { l.pyro_timer = C::PYRO_TIMER; } else { l.pyro_timer = f64::INFINITY }
@@ -884,7 +879,7 @@ impl State {
 
         let damage = mult * l.pyro_value;
         self.totals.total_damage += damage;
-        if is_target { self.totals.player_damage += damage; }
+        l.damage += damage;
 
         if self.log_enabled {
             self.log_spell_impact(lane as i32, Spell::PyroDot, damage, 1.0, SpellResult::Hit);

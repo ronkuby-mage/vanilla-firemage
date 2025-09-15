@@ -269,7 +269,6 @@ fn init_state(p: &SimParams, rng: &mut ChaCha8Rng, idx: u64) -> State {
     st.meta.cleaner_slots = p.config.udc.clone();
     st.meta.t3_6p_slots = p.config.t3_6p.clone();
     st.meta.t2_8p_slots = p.config.t2_8p.clone();
-    st.meta.target_slots = p.config.target.clone();
     st.meta.dmf_slots = p.buffs.world.get(&WorldBuff::SaygesDarkFortuneOfDamage).unwrap().clone().to_vec();
     st.meta.sr_slots = p.buffs.world.get(&WorldBuff::SoulRevival).unwrap().clone().to_vec();
     st.meta.ts_slots = p.buffs.world.get(&WorldBuff::TracesOfSilithyst).unwrap().clone().to_vec();

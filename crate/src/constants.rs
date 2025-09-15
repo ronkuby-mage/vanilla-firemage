@@ -313,7 +313,7 @@ pub const PER_WC: f64 = 0.02;
 pub const COE_MULTIPLIER: f64 = 1.10;      // Curse of Elements multiplier
 pub const SCORCH_MULTIPLIER: f64 = 0.03;   // +3% fire vuln per stack
 
-pub const FIRE_BLAST_COOLDOWN: f64 = 7.0;  // assumes 2 talent points
+pub const FIRE_BLAST_COOLDOWN: f64 = 8.0; 
 
 pub const POWER_INFUSION: f64 = 0.20;
 pub const ARCANE_POWER: f64 = 0.3;

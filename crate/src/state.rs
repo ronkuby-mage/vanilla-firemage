@@ -38,7 +38,6 @@ pub struct Boss {
     pub wc_count: u8,
     pub spell_vulnerability: f64,
     pub t3_6p: f64,
-    pub t2_8p: f64,
     pub dragonling_start: f64,
     pub nightfall: Vec<f64>,
 
@@ -59,7 +58,6 @@ impl Default for Boss {
             wc_count: 0,
             spell_vulnerability: 0.0,
             t3_6p: 0.0,
-            t2_8p: 0.0,
             dragonling_start: -C::DRAGONLING_DURATION,
             nightfall: vec![],
             scorch_refresh_history: Vec::new(),

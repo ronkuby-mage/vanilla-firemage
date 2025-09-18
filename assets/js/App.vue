@@ -1787,18 +1787,26 @@ const setRotationFromAutoBuild = () => {
     let sustain = autoBuildOptions.sustain;
     let rank0 = false;
     
-
     if (sustain == "maintain") {
         rank0 = true;
         sustain = "";
     }
     const pi_count = activePlayer.value.pi_count;
 
+    let derivedOpening = autoBuildOptions.derivedOpening;
+    let playerTrinkets = autoBuildOptions.playerTrinkets;
+    if (autoBuildOptions.derivedOpening == "") {
+        // trinket business (again)
+        const trinketResult = getDerivedTrinkets(activePlayer.value.loadout.trinket1.item_id, activePlayer.value.loadout.trinket2.item_id);
+        derivedOpening = trinketResult.derived;
+        playerTrinkets = trinketResult.trinkets;
+    }
+
     const playerApl = getPlayerApl(autoBuildOptions.preScorch,
                                 autoBuildOptions.bufferSpell,
-                                autoBuildOptions.derivedOpening,
+                                derivedOpening,
                                 sustain,
-                                autoBuildOptions.playerTrinkets,
+                                playerTrinkets,
                                 pi_count,
                                 rank0,
                                 activeRaid.value.players.length);    

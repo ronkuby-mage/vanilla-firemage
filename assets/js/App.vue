@@ -9,7 +9,8 @@ import aplData from "./apl";
 import { mage as talentTree } from "./talents";
 import {_, debounce} from "lodash";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
-import { generateRaidsFromTemplate } from "./template";
+import { generateRaidsFromTemplate, getDerivedTrinkets, getSustainPermutationsWrapper, getSustain, getPlayerApl } from "./template";
+import { preScorchOptions, bufferSpellOptions, derivedOpeningOptions, sustainOptions, scorchPerCrit, scorchPerSP } from "./template";
 
 /*
  * Helpers
@@ -1097,10 +1098,6 @@ const createPlayerOpen = () => {
     playerModel.value.race = activeRaid.value.faction == "Alliance" ? "Gnome" : "Undead";
     playerEdit.value.open(true);
 };
-const editPlayerOpen = (player) => {
-    playerModel.value = _.cloneDeep(player);
-    playerEdit.value.open(true);
-};
 const updatePlayer = () => {
     let isImport = playerImport.value.isOpen;
     playerEdit.value.close();
@@ -1280,10 +1277,6 @@ const cycleCount = (field) => {
 const showTip = () => {
     return false;
 }
-const playerRadioToggle = (val, key) => {
-    if (val == activePlayer.value[key])
-        activePlayer.value[key] = 0;
-};
 const talentImport = ref("");
 const importTalents = () => {
     let talents = common.parseTalents(talentImport.value);
@@ -1701,6 +1694,115 @@ const updateApl = () => {
     saveApls(apls.value);
     if (editApl.value)
         editApl.value.close();
+};
+
+// Auto-build rotation options
+const autoBuildOptions = computed({
+    get() {
+        if (!activePlayer.value) {
+            return {
+                preScorch: '',
+                bufferSpell: '',
+                derivedOpening: '',
+                sustain: '',
+                playerTrinkets: [0, 0]
+            };
+        }
+        
+        // Initialize auto-build options if they don't exist for this player
+        if (!activePlayer.value.autoBuildOptions) {
+            activePlayer.value.autoBuildOptions = {
+                preScorch: '',
+                bufferSpell: '',
+                derivedOpening: '',
+                sustain: '',
+                playerTrinkets: [0, 0]
+            };
+        }
+        
+        return activePlayer.value.autoBuildOptions;
+    },
+    set(value) {
+        if (activePlayer.value) {
+            activePlayer.value.autoBuildOptions = value;
+        }
+    }
+});
+const talentNames = talentTree.trees.reduce((a, b) => { return [...a, ...b.talents.rows.flat()]; }, []).map(t => t.name);
+const autofillRotation = () => {
+    const is_arcane = activePlayer.value.talents[talentNames.indexOf("arcane_power")] > 0;
+    const duration = activeRaid.value.config.duration;
+    
+    // pre scorch
+    let preScorch = "";
+    if (is_arcane) preScorch = "ap-fire";
+    else if (duration < 25.0) preScorch = "no-scorch"
+
+    // buffer spell
+    let bufferSpell = "";
+    if (preScorch == "") {
+        if (duration < 35.0) bufferSpell = "gcd";
+        else bufferSpell = "pyro";
+    }
+
+    // trinket business
+    const trinketResult = getDerivedTrinkets(activePlayer.value.loadout.trinket1.item_id, activePlayer.value.loadout.trinket2.item_id);
+    let derivedOpening = trinketResult.derived;
+    let playerTrinkets = trinketResult.trinkets;
+
+    // sustain
+    let crits = [];
+    let scorchRanks = [];
+    activeRaid.value.players.forEach(player => {
+        const stats = common.displayStats(player);
+        const effectiveCrit = (Math.min(stats.hit, 10.0) + 89.0)*stats.crit/99.0;
+        crits.push(effectiveCrit);
+        scorchRanks.push(stats.sp*scorchPerSP + effectiveCrit*scorchPerCrit);
+    });
+    const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
+    const scorchRank = scorchRanks.map((value, index) => 
+        scorchRanks.filter((v, i) => v > value || (v === value && i < index)).length
+    );
+    let sustainPermutation = getSustainPermutationsWrapper(averageCrit, activeRaid.value.players.length, duration, preScorch)[0];
+    const playerIndex = activeRaid.value.players.findIndex(player => player.id === activePlayer.value.id);
+    let sustain = getSustain(scorchRank[playerIndex], sustainPermutation);
+    if (sustainPermutation == "" && scorchRank[playerIndex] == 0 && preScorch == "") {
+        sustain = "maintain";
+    }
+
+    // For now, just set some default values as an example
+    const newOptions = {
+        preScorch: preScorch,
+        bufferSpell: bufferSpell,
+        derivedOpening: derivedOpening,
+        sustain: sustain,
+        playerTrinkets: playerTrinkets
+    };
+    activePlayer.value.autoBuildOptions = newOptions;
+};
+
+const setRotationFromAutoBuild = () => {
+    // TODO: Call getPlayerApl with the selected options and set activePlayer.apl
+    const autoBuildOptions = activePlayer.value.autoBuildOptions;
+    let sustain = autoBuildOptions.sustain;
+    let rank0 = false;
+    
+
+    if (sustain == "maintain") {
+        rank0 = true;
+        sustain = "";
+    }
+    const pi_count = activePlayer.value.pi_count;
+
+    const playerApl = getPlayerApl(autoBuildOptions.preScorch,
+                                autoBuildOptions.bufferSpell,
+                                autoBuildOptions.derivedOpening,
+                                sustain,
+                                autoBuildOptions.playerTrinkets,
+                                pi_count,
+                                rank0,
+                                activeRaid.value.players.length);    
+    activePlayer.value.apl = _.cloneDeep(playerApl);
 };
 
 /*
@@ -3023,19 +3125,33 @@ onMounted(() => {
                         <apl v-model="activePlayer.apl" :player="activePlayer" @save="editAplOpen" />
                     </div>
                     <div class="form-boxes">
-                        <div class="form-box medium apl-list">
-                            <div class="form-title">Presets</div>
-                            <div class="list">
-                                <div
-                                    class="item preset"
-                                    :class="{active: activePlayer.apl.id == item.id}"
-                                    v-for="item in presets.apls"
-                                    :key="item.id"
-                                    @click="selectApl(item)"
-                                >
-                                    <div class="name">{{ item.name }}</div>
-                                </div>
+                       <div class="form-box medium apl-auto-build">
+                            <div class="form-title">Auto-build</div>
+                            <div class="auto-build-button">
+                                <button class="btn btn-secondary block" @click="autofillRotation" style="margin-top: 16px;">Autofill Options</button>
                             </div>
+                            <div class="form-item">
+                                <label>Pre-Scorch</label>
+                                <select-simple v-model="autoBuildOptions.preScorch" :options="preScorchOptions" />
+                            </div>
+                            <div class="form-item">
+                                <label>Buffer Spell</label>
+                                <select-simple v-model="autoBuildOptions.bufferSpell" :options="bufferSpellOptions" />
+                            </div>
+                            <div class="form-item">
+                                <label>Trinket Usage</label>
+                                <select-simple v-model="autoBuildOptions.derivedOpening" :options="derivedOpeningOptions" />
+                            </div>
+                            <div class="form-item">
+                                <label>Ignite Sustain Strategy</label>
+                                <select-simple v-model="autoBuildOptions.sustain" :options="sustainOptions" />
+                            </div>
+                            <div class="auto-build-button" style="margin-top: 16px;">
+                                <button class="btn btn-secondary block" @click="setRotationFromAutoBuild">Set Rotation from Options</button>
+                            </div>
+                        </div>
+                        <div class="form-box medium apl-list" v-if="apls.length">
+                            <div class="form-title">Your rotations</div>
                             <div class="form-item">
                                 <select-simple
                                     v-model="playerModelCopy"
@@ -3044,9 +3160,6 @@ onMounted(() => {
                                     @input="copyPlayerApl"
                                 />
                             </div>
-                        </div>
-                        <div class="form-box medium apl-list" v-if="apls.length">
-                            <div class="form-title">Your rotations</div>
                             <div class="list">
                                 <div
                                     class="item default"

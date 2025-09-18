@@ -9,8 +9,8 @@ const shortFightThreshold = 25.0;
 const mediumFightThreshold = 45.0;
 const longFightThreshold = 60.0;
 const durationCriteria = 1.5;
-const scorchPerCrit = 1.3;
-const scorchPerSP = -6.7;
+export const scorchPerCrit = 1.3;
+export const scorchPerSP = -6.7;
 const staticCondition = {
     2: 20.0,
     3: 15.0,
@@ -97,6 +97,37 @@ const trinketToAura = Object.freeze({
     [ids.ids.TRINKET_ZHC]: common.auras.UNSTABLE_POWER,
     [ids.ids.TRINKET_MQG]: common.auras.MIND_QUICKENING,
 });
+
+// Options for the dropdown menus
+export const preScorchOptions = Object.freeze([
+    { value: '', title: 'Pre-Scorch' },
+    { value: 'no-scorch', title: 'No pre-Scorch' },
+    { value: 'ap-fire', title: 'AP Fire' }
+]);
+
+export const bufferSpellOptions = Object.freeze([
+    { value: '', title: 'No buffer' },
+    { value: 'gcd', title: 'GCD + Fireball buffer' },
+    { value: 'pyro', title: 'Pyroblast buffer' }
+]);
+
+export const derivedOpeningOptions = Object.freeze([
+    { value: '', title: 'By player trinkets' },
+    { value: 'mqg', title: 'MQG + passive' },
+    { value: 'mqg-dmg', title: 'MQG + active damage' },
+    { value: 'dmg', title: 'Active damage + passive' },
+    { value: 'dmg-dmg', title: 'Two active damage' },
+    { value: '', title: "Two passive" }
+]);
+
+export const sustainOptions = Object.freeze([
+    { value: '', title: 'Fireball' },
+    { value: 'maintain', title: 'Maintain Scorch stack' },
+    { value: 'wep', title: 'Spam Scorch' },
+    { value: 'cob', title: '..and Fire Blast on low Ignite timer' },
+    { value: 'cd', title: '..except during cooldowns' },
+]);
+
 /* see charts on page 6 of https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
 const getSustainPermutations = (staticTime, numMages, averageCrit) => {
     let sustainPermutations = [];
@@ -142,7 +173,7 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
     return sustainPermutations;
 };
 
-const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTrinket, havePI, isLastPlayer, numMages) => {
+export const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTrinket, PICount, isLastPlayer, numMages) => {
     let playerApl = apl.apl();
     playerApl.id = common.uuid();
     playerApl.name = "";
@@ -169,7 +200,7 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
         fixedSequence.sequence.push(apl.getAction("Combustion"));
     if (bufferSpell == Buffer.BUFFER_PYROBLAST) {
         fixedSequence.sequence.push(apl.getAction("Pyroblast"));
-        if (havePI) {
+        if (PICount > 0) {
             fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
         }
     } else {
@@ -178,7 +209,7 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
         }
         if (preScorch != PreScorch.PRESCORCH_APFIRE) {
             fixedSequence.sequence.push(apl.getAction("Fireball"));
-            if (havePI)
+            if (PICount > 0)
                 fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
         }
     }
@@ -194,7 +225,7 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
     let cond, item, items = [];
 
     // check for PI cooldown
-    if (havePI && preScorch == PreScorch.PRESCORCH_APFIRE) {
+    if (PICount > 0 && preScorch == PreScorch.PRESCORCH_APFIRE) {
         item = apl.item();
         item.condition.condition_type = apl.condition_type.TRUE;
         item.condition.condition_type = apl.condition_type.AND;
@@ -204,6 +235,24 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
         cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
         cond.values[0].vint = common.auras.ARCANE_POWER;
         item.condition.conditions.push(cond);
+        cond = apl.condition();
+        cond.condition_type = apl.condition_type.FALSE;
+        cond.values = [apl.value()];
+        cond.values[0].value_type = apl.value_type.PLAYER_COOLDOWN_EXISTS;
+        cond.values[0].vint = common.cooldowns.POWER_INFUSION;
+        item.condition.conditions.push(cond);
+        cond = apl.condition();
+        cond.condition_type = apl.condition_type.FALSE;
+        cond.values = [apl.value()];
+        cond.values[0].value_type = apl.value_type.PLAYER_AURA_EXISTS;
+        cond.values[0].vint = common.cooldowns.POWER_INFUSION;
+        item.condition.conditions.push(cond);
+        item.action = apl.getAction("PowerInfusion");
+        items.push(item);
+    } else if (PICount > 1) {
+        item = apl.item();
+        item.condition.condition_type = apl.condition_type.TRUE;
+        item.condition.condition_type = apl.condition_type.AND;
         cond = apl.condition();
         cond.condition_type = apl.condition_type.FALSE;
         cond.values = [apl.value()];
@@ -365,6 +414,86 @@ const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, playerTri
     return playerApl;
 };
 
+export const getDerivedTrinkets = (trinket1, trinket2) => {
+    let derivedOpening = OpeningPermutation.BY_PLAYER;
+    let playerTrinket = [0, 0];
+
+    if (trinket1 == ids.ids.TRINKET_MQG || trinket2 == ids.ids.TRINKET_MQG) {
+        if (knownDamageTrinkets.has(trinket1) || knownDamageTrinkets.has(trinket2)) {
+            derivedOpening = OpeningPermutation.TWO_TRINKETS;
+            if (trinket1 == ids.ids.TRINKET_MQG) {
+                playerTrinket = [trinket2, ids.ids.TRINKET_MQG];
+            } else {
+                playerTrinket = [trinket1, ids.ids.TRINKET_MQG];
+            }
+        } else {
+            derivedOpening = OpeningPermutation.MQG;
+            playerTrinket = [0, ids.ids.TRINKET_MQG];
+        }
+    } else if (knownDamageTrinkets.has(trinket1) && knownDamageTrinkets.has(trinket2)) {
+        derivedOpening = OpeningPermutation.TWO_DAMAGE;
+        playerTrinket = [trinket1, trinket2];
+    } else if (knownDamageTrinkets.has(trinket1)) {
+        derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
+        playerTrinket = [0, trinket1];
+    } else if (knownDamageTrinkets.has(trinket2)) {
+        derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
+        playerTrinket = [0, trinket2];
+    } 
+
+    return {derived: derivedOpening, trinkets: playerTrinket};
+};
+
+export const getSustainPermutationsWrapper = (averageCrit, players, duration, preScorch) => {
+
+    // calculate time to static conditions
+    const buildMages = Math.min(Math.max(players, 2), 6);
+    const buildTime = staticCondition[buildMages] + (50.0 - averageCrit)/5.0;
+    const staticTime = Math.max(duration - buildTime, 0.0)
+    let sustainPermutations = [SustainPermutation.NO_SUSTAIN];
+
+    if (preScorch != PreScorch.PRESCORCH_NO) {
+        sustainPermutations = getSustainPermutations(staticTime, players, averageCrit);
+    }
+
+    return sustainPermutations;
+};
+
+export const getSustain = (scorchRank, sustainPermutation) => {
+    let sustain = Sustain.NO;
+    if ((scorchRank == 0 && ((sustainPermutation == SustainPermutation.ONE_SUSTAIN) ||
+                        (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
+                        (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
+                        (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
+                        (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB) ||
+                        (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
+                        (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
+                        (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD) ||
+                        (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
+        (scorchRank == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
+                        (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB) ||
+                        (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD) ||
+                        (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
+        (scorchRank == 2 && (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB))) {
+        sustain = Sustain.COB;
+    } else if ((scorchRank == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
+                                (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
+                                (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP))) ||
+        (scorchRank == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
+                                (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) ||
+        (scorchRank == 3 && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) {
+        sustain = Sustain.CD;
+    }
+    if ((scorchRank == 1 && sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
+        (scorchRank == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
+                                (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
+        (scorchRank == 3 && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) {
+        sustain = Sustain.WEP;
+    }
+
+    return sustain;
+};
+
 /**
  * Generates multiple raids based on a template raid
  * @param {Object} templateRaid - The source raid to use as a template
@@ -457,28 +586,9 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                         player.loadout.trinket1 = _.cloneDeep({ item_id: playerTrinket[0], enchant_id: null });
                         player.loadout.trinket2 = _.cloneDeep({ item_id: playerTrinket[1], enchant_id: null });
                     } else {
-                        if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG || player.loadout.trinket2.item_id == ids.ids.TRINKET_MQG) {
-                            if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) || knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
-                                derivedOpening = OpeningPermutation.TWO_TRINKETS;
-                                if (player.loadout.trinket1.item_id == ids.ids.TRINKET_MQG) {
-                                    playerTrinket = [player.loadout.trinket2.item_id, ids.ids.TRINKET_MQG];
-                                } else {
-                                    playerTrinket = [player.loadout.trinket1.item_id, ids.ids.TRINKET_MQG];
-                                }
-                            } else {
-                                derivedOpening = OpeningPermutation.MQG;
-                                playerTrinket = [0, ids.ids.TRINKET_MQG];
-                            }
-                        } else if (knownDamageTrinkets.has(player.loadout.trinket1.item_id) && knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
-                            derivedOpening = OpeningPermutation.TWO_DAMAGE;
-                            playerTrinket = [player.loadout.trinket1.item_id, player.loadout.trinket2.item_id];
-                        } else if (knownDamageTrinkets.has(player.loadout.trinket1.item_id)) {
-                            derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
-                            playerTrinket = [0, player.loadout.trinket1.item_id];
-                        } else if (knownDamageTrinkets.has(player.loadout.trinket2.item_id)) {
-                            derivedOpening = OpeningPermutation.ACTIVE_DAMAGE;
-                            playerTrinket = [0, player.loadout.trinket2.item_id];
-                        } 
+                        const result = getDerivedTrinkets(player.loadout.trinket1.item_id, player.loadout.trinket2.item_id);
+                        derivedOpening = result.derived;
+                        playerTrinket = result.trinkets;
                         // implied else is that derivedOpening = OpeningPermutation.BY_PLAYER, which never meets any condition
                     }
                     let spec = "Deep Fire";
@@ -492,24 +602,14 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                     crits.push(effectiveCrit);
                     scorchRanks.push(stats.sp*scorchPerSP + effectiveCrit*scorchPerCrit);
                 });
+
                 /* see sections 2 & 4 https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
                 const averageCrit = crits.reduce((sum, num) => sum + num, 0) / crits.length;
                 const scorchRank = scorchRanks.map((value, index) => 
                     scorchRanks.filter((v, i) => v > value || (v === value && i < index)).length
                 );
 
-                // calculate time to static conditions
-                const buildMages = Math.min(Math.max(templateRaid.players.length, 2), 6);
-                const buildTime = staticCondition[buildMages] + (50.0 - averageCrit)/5.0;
-                const staticTime = Math.max(encounterDuration - buildTime, 0.0)
-                let sustainPermutations = [];
-
-                if (preScorch == PreScorch.PRESCORCH_NO) {
-                    // if we are not prescorching, it is unlikely sustaining ignite is a focus
-                    sustainPermutations = [SustainPermutation.NO_SUSTAIN];
-                } else {
-                    sustainPermutations = getSustainPermutations(staticTime, templateRaid.players.length, averageCrit);
-                }
+                let sustainPermutations = getSustainPermutationsWrapper(averageCrit, templateRaid.players.length, encounterDuration, preScorch);
 
                 sustainPermutations.forEach(sustainPermutation => {
                     let desc = [];
@@ -526,7 +626,6 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                         desc.push(sustainPermutation);
                     }
                     const description = desc.map(str => str !== "" ? str + " " : str);
-                    let count = 0;
                     const newSubRaid = _.cloneDeep(newRaid);
                     newSubRaid.id = common.uuid();
                     newSubRaid.groupId = groupId;
@@ -542,37 +641,8 @@ export const generateRaidsFromTemplate = (templateRaid, options = {}) => {
                         let derivedOpening = derivedOpenings[index];
                         // done collecting/setting player trinkets
                         // time to build the player apl
-                        let sustain = Sustain.NO;
-                        if ((scorchRank[index] == 0 && ((sustainPermutation == SustainPermutation.ONE_SUSTAIN) ||
-                                            (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
-                                            (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
-                                            (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
-                                            (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB) ||
-                                            (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
-                                            (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
-                                            (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD) ||
-                                            (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
-                            (scorchRank[index] == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
-                                            (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB) ||
-                                            (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD) ||
-                                            (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
-                            (scorchRank[index] == 2 && (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB))) {
-                            sustain = Sustain.COB;
-                        } else if ((scorchRank[index] == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
-                                                   (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
-                                                   (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP))) ||
-                            (scorchRank[index] == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
-                                                  (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) ||
-                            (scorchRank[index] == 3 && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD))) {
-                            sustain = Sustain.CD;
-                        }
-                        if ((scorchRank[index] == 1 && sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
-                            (scorchRank[index] == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP) ||
-                                                  (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
-                            (scorchRank[index] == 3 && (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) {
-                            sustain = Sustain.WEP;
-                        }
-                        const playerApl = getPlayerApl(preScorch, bufferSpell, derivedOpening, sustain, playerTrinket, player.pi_count > 0, scorchRank[index] == 0, templateRaid.players.length);
+                        let sustain = getSustain(scorchRank[index], sustainPermutation);
+                        const playerApl = getPlayerApl(preScorch, bufferSpell, derivedOpening, sustain, playerTrinket, player.pi_count, scorchRank[index] == 0, templateRaid.players.length);
                         player.apl = _.cloneDeep(playerApl);
                     });
                     generatedRaids.push(newSubRaid);

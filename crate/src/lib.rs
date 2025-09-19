@@ -58,7 +58,7 @@ pub fn run_simulations(cfg_js: JsValue, iterations: i32) -> JsValue {
         let mut hit_params = params.clone();
         for (idx, hit) in hit_params.stats.hit_chance.iter_mut().enumerate() {
             if hit_params.config.vary.iter().any(|&i| i == idx) {
-                *hit += 0.015;
+                *hit -= 0.015;
             }
         }
         let results_hit: SimulationsResult = run_many_with::<_, _>(&hit_params, &make_decider, iterations, seed);

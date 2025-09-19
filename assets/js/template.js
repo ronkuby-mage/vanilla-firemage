@@ -125,7 +125,7 @@ export const sustainOptions = Object.freeze([
     { value: 'maintain', title: 'Maintain Scorch stack' },
     { value: 'wep', title: 'Spam Scorch' },
     { value: 'cob', title: '..and Fire Blast on low Ignite timer' },
-    { value: 'cd', title: '..except during cooldowns' },
+    { value: 'cd', title: '..except during active cooldowns' },
 ]);
 
 /* see charts on page 6 of https://github.com/ronkuby-mage/vanilla-firemage/ignite.pdf */
@@ -200,7 +200,7 @@ export const getPlayerApl = (preScorch, bufferSpell, derivedOpening, sustain, pl
         fixedSequence.sequence.push(apl.getAction("Combustion"));
     if (bufferSpell == Buffer.BUFFER_PYROBLAST) {
         fixedSequence.sequence.push(apl.getAction("Pyroblast"));
-        if (PICount > 0) {
+        if (PICount > 0 && preScorch != PreScorch.PRESCORCH_APFIRE) {
             fixedSequence.sequence.push(apl.getAction("PowerInfusion"));
         }
     } else {

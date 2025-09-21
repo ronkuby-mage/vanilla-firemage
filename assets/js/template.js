@@ -51,7 +51,8 @@ const auraTriggers = new Set([
 ]);
 const SustainPermutation = Object.freeze({
     NO_SUSTAIN: "",
-    ONE_SUSTAIN: "cob",
+    ONE_SUSTAIN_COB: "cob",
+    ONE_SUSTAIN_CD: "cd",
     TWO_SUSTAIN_COBCOB: "2cob",
     TWO_SUSTAIN_COBCD: "cob-cd",
     TWO_SUSTAIN_COBWEP: "cob-wep",
@@ -63,7 +64,7 @@ const SustainPermutation = Object.freeze({
 });
 const rotationsBySustains = Object.freeze({
     0: [SustainPermutation.NO_SUSTAIN],
-    1: [SustainPermutation.ONE_SUSTAIN],
+    1: [SustainPermutation.ONE_SUSTAIN_COB, SustainPermutation.ONE_SUSTAIN_CD],
     2: [SustainPermutation.TWO_SUSTAIN_COBCOB, SustainPermutation.TWO_SUSTAIN_COBCD, SustainPermutation.TWO_SUSTAIN_COBWEP],
     3: [SustainPermutation.THREE_SUSTAIN_COBCOBCOB, SustainPermutation.THREE_SUSTAIN_COBCDCD, SustainPermutation.THREE_SUSTAIN_COBCDWEP],
     4: [SustainPermutation.FOUR_SUSTAIN_COBCOBCDCD, SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP],
@@ -136,7 +137,8 @@ const getSustainPermutations = (staticTime, numMages, averageCrit) => {
     let ranked = [];
     
     if (regularMages == 1) {
-        sustainPermutations.push(SustainPermutation.ONE_SUSTAIN);
+        sustainPermutations.push(SustainPermutation.ONE_SUSTAIN_COB);
+        sustainPermutations.push(SustainPermutation.ONE_SUSTAIN_CD);
     } else if (regularMages == 2) {
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBCOB);
         sustainPermutations.push(SustainPermutation.TWO_SUSTAIN_COBCD);
@@ -461,7 +463,7 @@ export const getSustainPermutationsWrapper = (averageCrit, players, duration, pr
 
 export const getSustain = (scorchRank, sustainPermutation) => {
     let sustain = Sustain.NO;
-    if ((scorchRank == 0 && ((sustainPermutation == SustainPermutation.ONE_SUSTAIN) ||
+    if ((scorchRank == 0 && ((sustainPermutation == SustainPermutation.ONE_SUSTAIN_COB) ||
                         (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCOB) ||
                         (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
                         (sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBWEP) ||
@@ -476,7 +478,8 @@ export const getSustain = (scorchRank, sustainPermutation) => {
                         (sustainPermutation == SustainPermutation.FOUR_SUSTAIN_COBCOBWEPWEP))) ||
         (scorchRank == 2 && (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCOBCOB))) {
         sustain = Sustain.COB;
-    } else if ((scorchRank == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
+    } else if ((scorchRank == 0 && (sustainPermutation == SustainPermutation.ONE_SUSTAIN_CD)) ||
+        (scorchRank == 1 && ((sustainPermutation == SustainPermutation.TWO_SUSTAIN_COBCD) ||
                                 (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||
                                 (sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDWEP))) ||
         (scorchRank == 2 && ((sustainPermutation == SustainPermutation.THREE_SUSTAIN_COBCDCD) ||

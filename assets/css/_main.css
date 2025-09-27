@@ -643,6 +643,30 @@ body {
                         .delete {
                             color: var(--color-danger);
                         }
+                        .dps-diff {
+                            text-align: center;
+                            min-width: 70px;
+                            font-weight: 600;
+                        }
+
+                        .dps-diff th {
+                            font-size: 11px;
+                            white-space: nowrap;
+                            padding: 0 4px;
+                        }
+
+                        .dps-diff.positive {
+                            color: #4CAF50;
+                        }
+
+                        .dps-diff.negative {
+                            color: #f44336;
+                        }
+
+                        .dps-diff.neutral {
+                            color: #999;
+                            font-weight: 400;
+                        }                        
                     }
 
                     .missing-item-button {

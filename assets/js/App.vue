@@ -1228,6 +1228,91 @@ const activeSlot = ref("head");
 const activeGearType = ref("gear");
 const activeResultTab = ref("overview");
 
+const showDpsColumn = computed(() => {
+    return activePlayer.value?.is_vary && 
+           result.value && 
+           result.value.iterations >= 100000;
+});
+const itemDpsValues = computed(() => {
+    if (!showDpsColumn.value || !activeSlot.value || !activePlayer.value) {
+        return {};
+    }
+    
+    // Get the RAW item list directly, not the sorted one
+    let rawList = [];
+    const itemSlot = common.loadoutSlotToItemSlot(activeSlot.value);
+    
+    if (activeGearType.value == "enchant") {
+        rawList = items.enchants[itemSlot] || [];
+    } else {
+        rawList = items.gear[itemSlot] || [];
+        let custom = customItems.value.filter(ci => ci.slot == itemSlot);
+        if (custom.length)
+            rawList = [...custom, ...rawList];
+    }
+    
+    // Filter by faction (same logic as itemList but without sorting)
+    let faction_str = activeRaid.value.faction.toLowerCase().substr(0, 1);
+    rawList = rawList.filter(item => {
+        if (itemSearch.value.length) {
+            if (item.title.toLowerCase().indexOf(itemSearch.value.toLowerCase()) == -1)
+                return false;
+        }
+        if (item.hasOwnProperty("faction") && item.faction != faction_str)
+            return false;
+        return true;
+    });
+    
+    const currentItemId = activePlayer.value.loadout[activeSlot.value].item_id;
+    const currentEnchantId = activePlayer.value.loadout[activeSlot.value].enchant_id;
+    const isEnchantSlot = activeGearType.value === 'enchant';
+    
+    // Get current item stats
+    let currentStats = { sp: 0, sp_fire: 0, sp_frost: 0, sp_arcane: 0, crit: 0, hit: 0, int: 0, spi: 0, mp5: 0 };
+    if (isEnchantSlot && currentEnchantId) {
+        const enchantList = items.enchants[itemSlot] || [];
+        const currentEnchant = enchantList.find(e => e.id === currentEnchantId);
+        if (currentEnchant) {
+            currentStats = { ...currentStats, ...currentEnchant };
+        }
+    } else if (!isEnchantSlot && currentItemId) {
+        const customItem = customItems.value.find(ci => ci.id === currentItemId);
+        const currentItem = customItem || rawList.find(i => i.id === currentItemId);
+        if (currentItem) {
+            currentStats = { ...currentStats, ...currentItem };
+        }
+    }
+
+    // Apply stat weights
+    const spWeight = statWeight('sp') || 0;
+    const critWeight = statWeight('crit') || 0;
+    const hitWeight = statWeight('hit') || 0;    
+
+    // Calculate DPS values for each item in the RAW list
+    const dpsValues = {};
+    rawList.forEach(item => {
+        // Calculate stat differences
+        const statDiff = {
+            sp: (item.sp || 0) + (item.sp_fire || 0) - ((currentStats.sp || 0) + (currentStats.sp_fire || 0)),
+            crit: (item.crit || 0) - (currentStats.crit || 0),
+            hit: (item.hit || 0) - (currentStats.hit || 0),
+            int: (item.int || 0) - (currentStats.int || 0)
+        };
+
+        // Calculate DPS difference
+        let dpsDiff = statDiff.sp;
+        
+        // Convert crit and hit weights (which are in SP equivalent) to DPS
+        const intToCritRatio = 1/59.5; // ~1% crit per 59.5 int for mages
+        dpsDiff += (statDiff.crit + statDiff.int * intToCritRatio) * critWeight; 
+        dpsDiff += statDiff.hit * hitWeight;
+        dpsDiff *= spWeight;
+        
+        dpsValues[item.id] = dpsDiff;
+    });
+    
+    return dpsValues;
+});
 /*
  * Config UI
  */
@@ -1349,7 +1434,45 @@ const itemSorting = ref({
 const itemSort = (items, sorting) => {
     if (!sorting || !sorting.name)
         return items;
+   
+    // Handle DPS difference sorting specially
+    if (sorting.name === 'dps_diff') {
+        if (!showDpsColumn.value) return items;
+        
+        // Simple fix: temporarily fall back to ilvl sorting during gear changes
+        // Check if stat weights are valid
+        const spWeight = statWeight('sp') || 0;
+        if (spWeight === 0) {
+            console.log('Stat weights not available, falling back to ilvl sort');
+            return itemSort(items, { name: 'ilvl', order: 'desc' });
+        }
+        
+        // Check if we have valid DPS values
+        const dpsValues = itemDpsValues.value;
+        const hasValidValues = Object.values(dpsValues).some(val => Math.abs(val) > 0.01);
+        if (!hasValidValues) {
+            console.log('No valid DPS values, falling back to ilvl sort');
+            return itemSort(items, { name: 'ilvl', order: 'desc' });
+        }
+        
+        return items.sort((a, b) => {
+            let av = dpsValues[a.id] || 0;
+            let bv = dpsValues[b.id] || 0;
+            let ac = common.isCustomItem(a);
+            let bc = common.isCustomItem(b);
 
+            if (ac && !bc) return -1;
+            if (!ac && bc) return 1;
+
+            let result = av - bv;
+            if (sorting.order == "desc" && result != 0)
+                result = result < 0 ? 1 : -1;
+
+            return result;
+        });
+    }
+
+    // Original sorting logic for other columns
     let type = null;
     for (let i=0; i<items.length; i++) {
         let value = _.get(items[i], sorting.name, null);
@@ -1403,9 +1526,6 @@ const itemSort = (items, sorting) => {
 
         if (sorting.order == "desc" && result != 0)
             result = result < 0 ? 1 : -1;
-
-        // if (result == 0)
-        //     result = a.title.localeCompare(b.title);
 
         return result;
     });
@@ -3038,6 +3158,10 @@ onMounted(() => {
                                         <th class="title">
                                             <sort-link v-model="itemSorting" name="title">Name</sort-link>
                                         </th>
+                                        <th v-if="showDpsColumn" class="dps-diff">
+                                            <sort-link v-model="itemSorting" name="dps_diff" order="desc">DPS Δ</sort-link>
+                                            <tooltip>DPS difference vs equipped item based on current stat weights</tooltip>
+                                        </th>
                                         <th v-if="itemList.type != 'enchant'">
                                             <sort-link v-model="itemSorting" name="ilvl" order="desc">ilvl</sort-link>
                                         </th>
@@ -3093,6 +3217,19 @@ onMounted(() => {
                                                 {{ item.title }}
                                             </a>
                                           <span v-if="item.pvp" class="pvp-badge">PVP</span>
+                                        </td>
+                                        <td v-if="showDpsColumn" class="dps-diff" 
+                                            :class="{
+                                                'positive': itemDpsValues[item.id] > 0.5,
+                                                'negative': itemDpsValues[item.id] < -0.5,
+                                                'neutral': Math.abs(itemDpsValues[item.id]) <= 0.5
+                                            }">
+                                            <template v-if="Math.abs(itemDpsValues[item.id]) >= 0.1">
+                                                {{ itemDpsValues[item.id] > 0 ? '+' : '' }}{{ itemDpsValues[item.id].toFixed(1) }}
+                                            </template>
+                                            <template v-else>
+                                                0.0
+                                            </template>
                                         </td>
                                         <td v-if="itemList.type != 'enchant'">{{ item.ilvl }}</td>
                                         <td><spell-power :value="item" /></td>

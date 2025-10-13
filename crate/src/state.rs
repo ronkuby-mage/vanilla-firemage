@@ -735,10 +735,20 @@ impl State {
                 if l.comb_left == 1 { l.comb_cooldown = C::COMBUSTION_COOLDOWN; }
                 if l.comb_left > 0 { l.comb_left -= 1; }
             } else {
-                let extra = k_lane.crit_damage * spell_damage; // +0.5 or +1.0
-                self.totals.total_damage += extra;
-                l.damage += extra;
-                spell_damage += extra;
+                // subtract previous damage from totals
+                self.totals.total_damage -= spell_damage;
+                l.damage -= spell_damage;
+
+                // calculate crit damage
+                let crit_line = (1.0 + k_lane.crit_damage) * spell_damage; // 1.5x for fire crit ledger
+                let crit_mult_line = if is_cleaner { 1.0 + C::UDC_MOD } else { 1.0 };
+
+                // add crit damage
+                self.totals.total_damage += crit_line * crit_mult_line;
+                l.damage += crit_line * crit_mult_line;
+
+                // reset spell damage
+                spell_damage = crit_line * crit_mult_line;
             }
         }
         if k_lane.is_scorch[spell_type] {

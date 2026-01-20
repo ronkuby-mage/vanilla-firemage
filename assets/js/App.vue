@@ -213,7 +213,26 @@ const defaultItems = () => {
         mqg: false,
     };
 };
-
+const validateRequiredNumbers = (config) => {
+    const requiredFields = [
+        { key: 'duration', label: 'Fight duration' },
+        { key: 'duration_variance', label: 'Duration variance' },
+        { key: 'reaction_time', label: 'React Time' },
+        { key: 'initial_delay', label: 'Start Delay' },
+        { key: 'continuing_delay', label: 'Cast Delay' }
+    ];
+    
+    const errors = [];
+    
+    for (const field of requiredFields) {
+        const value = config[field.key];
+        if (value === null || value === undefined || value === '' || isNaN(value)) {
+            errors.push(`${field.label} is required and must be a valid number`);
+        }
+    }
+    
+    return errors;
+};
 
 /*
  * Player
@@ -735,6 +754,14 @@ const simConfig = (raid = null) => {
     return config;
 };
 const runSingle = () => {
+    // Validate required numeric fields
+    const errors = validateRequiredNumbers(activeRaid.value.config);
+    
+    if (errors.length > 0) {
+        alert('Please fix the following errors:\n\n' + errors.join('\n'));
+        return;
+    }
+
     // Single iteration only runs the active raid
     const config = simConfig();
     config.raid_id = activeRaid.value.id;
@@ -759,6 +786,14 @@ const simProgress = reactive({
     progress: 0,
 });
 const runMultiple = () => {
+    // Validate required numeric fields
+    const errors = validateRequiredNumbers(activeRaid.value.config);
+    
+    if (errors.length > 0) {
+        alert('Please fix the following errors:\n\n' + errors.join('\n'));
+        return;
+    }
+
     let iterations = settings.iterations;
     let configs = [];
     const config = simConfig();

@@ -639,7 +639,7 @@ impl State {
 
         let dragonling_active = (self.global.running_time >= self.boss.dragonling_start) && (self.global.running_time < self.boss.dragonling_start + C::DRAGONLING_DURATION);
         let mut buff_damage = if dragonling_active { C::DRAGONLING_BUFF * is_fire as usize as f64 } else { 0.0 };
-        for b in 0..C::NUM_DAMAGE_BUFFS { if l.buff_timer[b] > 0.0 { buff_damage += C::BUFF_DAMAGE[b] + (l.buff_ticks[b] as f64)*C::BUFF_PER_TICK[b]; l.buff_ticks[b]=l.buff_ticks[b].saturating_add(1); } }
+        for b in 0..C::NUM_DAMAGE_BUFFS { if l.buff_timer[b] > 0.0 { buff_damage += (C::BUFF_DAMAGE[b] + (l.buff_ticks[b] as f64)*C::BUFF_PER_TICK[b]).max(0.0); l.buff_ticks[b]=l.buff_ticks[b].saturating_add(1); } }
         if self.meta.no_debuff_limit && self.boss.t3_6p > 0.0 {
             buff_damage += C::T3_6P_DAMAGE;
             self.boss.t3_6p = 0.0;
@@ -684,6 +684,11 @@ impl State {
         if is_crit {
             if is_fire {
                 if k_lane.is_ignite {
+                    // in-game bug that removes counters on ingite encabled crits:
+                    for b in 0..C::NUM_DAMAGE_BUFFS {
+                        l.buff_ticks[b]=l.buff_ticks[b].saturating_add(1);
+                    }
+
                     // ignite timer checks
                     if self.boss.ignite_timer <= 0.0 {
                         self.boss.ignite_count = 0;
